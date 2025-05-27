@@ -115,10 +115,6 @@ class ToolDefinition:
             "function": {
                 "name": self.name,
                 "description": self.description,
-                "parameters": {
-                    "type": "object",
-                    "properties": self.parameters,
-                    "required": list(self.parameters.keys())
-                }
+                "parameters": self.parameters  # parameters is already a complete JSON Schema
             }
         } 
