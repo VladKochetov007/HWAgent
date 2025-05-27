@@ -1,11 +1,12 @@
 import os
-from . import BaseTool
+from hwagent.tools import BaseTool, ToolRegister
 
 
+@ToolRegister
 class ReadFileTool(BaseTool):
     """Reads and returns the content of an existing file from the tmp directory. Use this to examine file contents or check results."""
     
-    def __init__(self, tmp_directory: str = "hwagent/tmp"):
+    def __init__(self, tmp_directory: str = "tmp"):
         self.tmp_directory = tmp_directory
         os.makedirs(self.tmp_directory, exist_ok=True)
     

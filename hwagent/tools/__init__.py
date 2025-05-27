@@ -3,6 +3,25 @@ from typing import Any
 import inspect
 
 
+# Global tool registry
+_TOOL_REGISTRY: dict[str, type['BaseTool']] = {}
+
+
+def ToolRegister(cls):
+    """Decorator to register a tool class in the global registry."""
+    if not issubclass(cls, BaseTool):
+        raise TypeError(f"Class {cls.__name__} must inherit from BaseTool")
+    
+    tool_name = cls.get_name()
+    _TOOL_REGISTRY[tool_name] = cls
+    return cls
+
+
+def get_registered_tools() -> dict[str, type['BaseTool']]:
+    """Get all registered tool classes."""
+    return _TOOL_REGISTRY.copy()
+
+
 class BaseTool(ABC):
     """Base class for all tools in the HWAgent system."""
     

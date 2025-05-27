@@ -4,8 +4,8 @@ import inspect
 from typing import Any
 from pathlib import Path
 
-from .config_loader import load_yaml_config
-from .tools import BaseTool
+from hwagent.config_loader import load_yaml_config
+from hwagent.tools import BaseTool, get_registered_tools
 
 
 class ToolManager:
@@ -19,11 +19,11 @@ class ToolManager:
             prompts_cfg = load_yaml_config(prompts_config_path)
             self.messages = prompts_cfg.get("agent_messages", {}).get("tool_manager", {})
             self.config = prompts_cfg.get("config", {})
-            self.tmp_directory = self.config.get("tmp_directory", "hwagent/tmp")
+            self.tmp_directory = self.config.get("tmp_directory", "tmp")
         except Exception:
             self.messages = {}
             self.config = {}
-            self.tmp_directory = "hwagent/tmp"
+            self.tmp_directory = "tmp"
         
         # Ensure tmp directory exists
         os.makedirs(self.tmp_directory, exist_ok=True)
@@ -31,7 +31,40 @@ class ToolManager:
         self._discover_and_load_tools()
 
     def _discover_and_load_tools(self):
-        """Automatically discover and load all *Tool classes from the tools directory."""
+        """Automatically discover and load all registered tool classes."""
+        # First, import all tool modules to trigger registration
+        self._import_tool_modules()
+        
+        # Get all registered tools
+        registered_tools = get_registered_tools()
+        
+        if not registered_tools:
+            print("Warning: No tools were registered.")
+            return
+
+        # Instantiate all registered tools
+        for tool_name, tool_class in registered_tools.items():
+            try:
+                self.tool_classes[tool_name] = tool_class
+                
+                # Check if tool constructor accepts tmp_directory parameter
+                sig = inspect.signature(tool_class.__init__)
+                if 'tmp_directory' in sig.parameters:
+                    self.tool_instances[tool_name] = tool_class(tmp_directory=self.tmp_directory)
+                else:
+                    self.tool_instances[tool_name] = tool_class()
+                
+                print(f"Loaded tool: {tool_name} from {tool_class.__module__}")
+                
+            except Exception as e:
+                print(f"Error instantiating tool {tool_name}: {e}")
+                continue
+
+        if not self.tool_instances:
+            print("Warning: No tools were successfully instantiated.")
+
+    def _import_tool_modules(self):
+        """Import all Python modules in the tools directory to trigger tool registration."""
         tools_path = Path(self.tools_dir)
         if not tools_path.exists():
             print(f"Warning: Tools directory {self.tools_dir} does not exist.")
@@ -44,37 +77,12 @@ class ToolManager:
             
             module_name = py_file.stem
             try:
-                # Import the module dynamically
+                # Import the module dynamically to trigger @ToolRegister decorators
                 module_path = f"hwagent.tools.{module_name}"
-                module = importlib.import_module(module_path)
+                importlib.import_module(module_path)
                 
-                # Find all classes that end with "Tool" and inherit from BaseTool
-                for name, obj in inspect.getmembers(module, inspect.isclass):
-                    if (name.endswith("Tool") and 
-                        issubclass(obj, BaseTool) and 
-                        obj is not BaseTool):
-                        
-                        tool_name = obj.get_name()
-                        self.tool_classes[tool_name] = obj
-                        
-                        # Check if tool constructor accepts tmp_directory parameter
-                        try:
-                            sig = inspect.signature(obj.__init__)
-                            if 'tmp_directory' in sig.parameters:
-                                self.tool_instances[tool_name] = obj(tmp_directory=self.tmp_directory)
-                            else:
-                                self.tool_instances[tool_name] = obj()
-                        except Exception as e:
-                            print(f"Error instantiating tool {tool_name}: {e}")
-                            continue
-                        
-                        print(f"Loaded tool: {tool_name} from {module_name}")
-                        
             except Exception as e:
-                print(f"Error loading tools from {module_name}: {e}")
-
-        if not self.tool_instances:
-            print("Warning: No tools were discovered and loaded.")
+                print(f"Error importing tool module {module_name}: {e}")
 
     @property 
     def tools(self) -> dict[str, BaseTool]:

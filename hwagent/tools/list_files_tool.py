@@ -1,11 +1,12 @@
 import os
-from . import BaseTool
+from hwagent.tools import BaseTool, ToolRegister
 
 
+@ToolRegister
 class ListFilesTool(BaseTool):
     """Lists files and directories in the tmp directory or specified subdirectory. Use this to explore the filesystem structure."""
     
-    def __init__(self, tmp_directory: str = "hwagent/tmp"):
+    def __init__(self, tmp_directory: str = "tmp"):
         self.tmp_directory = tmp_directory
         os.makedirs(self.tmp_directory, exist_ok=True)
     

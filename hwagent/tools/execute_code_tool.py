@@ -2,13 +2,14 @@ import os
 import subprocess
 import tempfile
 from pathlib import Path
-from . import BaseTool
+from hwagent.tools import BaseTool, ToolRegister
 
 
+@ToolRegister
 class ExecuteCodeTool(BaseTool):
     """Executes code files (Python, C++, etc.) from the tmp directory and returns the output. Use this to run your code and see results."""
     
-    def __init__(self, tmp_directory: str = "hwagent/tmp"):
+    def __init__(self, tmp_directory: str = "tmp"):
         self.tmp_directory = tmp_directory
         os.makedirs(self.tmp_directory, exist_ok=True)
     

@@ -1,12 +1,13 @@
 import os
 from pathlib import Path
-from . import BaseTool
+from hwagent.tools import BaseTool, ToolRegister
 
 
+@ToolRegister
 class CreateFileTool(BaseTool):
     """Creates a new file with the specified content in the tmp directory. Use this when you need to generate a new file."""
     
-    def __init__(self, tmp_directory: str = "hwagent/tmp"):
+    def __init__(self, tmp_directory: str = "tmp"):
         self.tmp_directory = tmp_directory
         os.makedirs(self.tmp_directory, exist_ok=True)
     

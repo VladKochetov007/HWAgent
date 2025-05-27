@@ -54,7 +54,7 @@ def main():
         if not tool_manager.tools:
             print(main_prompts.get("tool_manager_init_warning", main_prompts_defaults["tool_manager_init_warning"]))
 
-        agent = ReActAgent(client, model_name, tool_manager, base_system_prompt, agent_react_prompts)
+        agent = ReActAgent(client, model_name, tool_manager, base_system_prompt, agent_react_prompts, enable_streaming=True)
 
     except Exception as e:
         err_tpl = main_prompts.get("client_agent_init_error", main_prompts_defaults["client_agent_init_error"])
@@ -64,18 +64,49 @@ def main():
     print(main_prompts.get("chatbot_started_message", main_prompts_defaults["chatbot_started_message"]))
     prompt_snippet_to_display = base_system_prompt[:200] if isinstance(base_system_prompt, str) else str(base_system_prompt)[:200]
     print(main_prompts.get("base_prompt_display", main_prompts_defaults["base_prompt_display"]).format(prompt_snippet=prompt_snippet_to_display))
+    
+    print("\nSpecial commands:")
+    print("  /clear - Clear conversation context")
+    print("  /context - Show context summary")
+    print("  /stream on/off - Enable/disable streaming")
+    print("  /exit or 'exit' - Exit the chatbot")
+    print()
 
     while True:
         user_input = input("You: ")
-        if user_input.lower() == "exit":
+        
+        # Handle special commands
+        if user_input.lower() in ["exit", "/exit"]:
             print(main_prompts.get("chatbot_shutdown_message", main_prompts_defaults["chatbot_shutdown_message"]))
             break
+        elif user_input.lower() == "/clear":
+            agent.clear_context()
+            continue
+        elif user_input.lower() == "/context":
+            print(agent.get_context_summary())
+            continue
+        elif user_input.lower().startswith("/stream"):
+            parts = user_input.lower().split()
+            if len(parts) > 1:
+                if parts[1] == "on":
+                    agent.enable_streaming = True
+                    print("Streaming enabled.")
+                elif parts[1] == "off":
+                    agent.enable_streaming = False
+                    print("Streaming disabled.")
+                else:
+                    print("Usage: /stream on or /stream off")
+            else:
+                status = "enabled" if agent.enable_streaming else "disabled"
+                print(f"Streaming is currently {status}.")
+            continue
 
         if not user_input.strip():
             continue
 
         assistant_final_response = agent.process_user_request(user_input)
-        print(f"Bot: {assistant_final_response}")
+        if not agent.enable_streaming:  # Only print if not streaming (streaming prints as it goes)
+            print(f"Bot: {assistant_final_response}")
 
 if __name__ == "__main__":
     # With relative imports, this script should be run as a module from the parent directory:
