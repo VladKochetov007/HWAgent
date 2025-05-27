@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KoNKer.AI Chat</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+    <div class="chat-top-menu">
+        <button id="new-chat">Новий чат</button>
+        <button id="support">Підтримати автора</button>
+        <button id="partner">Контакти</button>
+    </div>
+    <div class="container">
+        <aside class="sidebar">
+            <div class="logo-container">
+                <img src="./images/logo.png" alt="KoNKer.AI" class="logo-small">
+                <h1>KoNKer.AI</h1>
+            </div>
+            <div class="model-selection">
+                <h3>Мовна модель</h3>
+                <select id="model-select">
+                    <option value="gpt-4">GPT-4</option>
+                    <option value="gpt-3.5">GPT-3.5</option>
+                    <option value="custom">Інша модель</option>
+                </select>
+            </div>
+            <div class="api-input">
+                <h3>API Key</h3>
+                <input type="password" placeholder="Введіть ваш API ключ">
+            </div>
+            <div class="chat-history">
+                <h3>Історія чату</h3>
+                <ul id="history-list">
+                    <li>Новий чат</li>
+                </ul>
+            </div>
+        </aside>
+        <main class="chat-container">
+            <div class="chat-messages" id="chat-messages">
+                <div class="logo-background"></div>
+            </div>
+            <div class="input-container">
+                <div class="message-input-wrapper">
+                    <textarea placeholder="Type your message here..." id="message-input"></textarea>
+                    <button class="upload-file">
+                        <svg width="24" height="24" viewBox="0 0 24 24">
+                            <path d="M12 2L19 9V21H5V3H12Z"></path>
+                        </svg>
+                    </button>
+                    <button class="send-message">
+                        <svg width="24" height="24" viewBox="0 0 24 24">
+                            <path d="M2 21L23 12L2 3V10L17 12L2 14V21Z"></path>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+        </main>
+    </div>
+    <script src="script.js"></script>
+</body>
+
+</html>
