@@ -1,93 +1,84 @@
-import yaml
 import os
 from openai import OpenAI
 
-# --- Configuration Loading ---
-def load_config(config_path: str) -> dict:
-    with open(config_path, "r") as f:
-        return yaml.safe_load(f)
+from .config_loader import load_yaml_config
+from .tool_manager import ToolManager
+from .react_agent import ReActAgent
 
 # --- Main Chatbot Logic ---
 def main():
-    """Runs the terminal-based chatbot."""
+    """Runs the terminal-based chatbot with ReAct agent logic."""
+    prompts_config = {}
+    main_prompts_defaults = {
+        "config_load_fail_error": "Failed to load initial configurations. Exiting.",
+        "api_config_missing_error": "Error: 'base_url' or 'model' not found in api.yaml under 'openrouter'.",
+        "api_key_missing_error": "Error: Environment variable OPENROUTER_API_KEY not set.",
+        "api_key_missing_instruction": "Please set it before running the bot: export OPENROUTER_API_KEY='your_api_key'",
+        "tool_manager_init_warning": "Warning: ToolManager initialized but no tools were loaded. Tool functionality will be limited.",
+        "client_agent_init_error": "Error initializing OpenAI client or Agent: {error}",
+        "chatbot_started_message": "ReAct Chatbot started! Type 'exit' to quit.",
+        "base_prompt_display": "Base system prompt being used by agent: {prompt_snippet}...",
+        "chatbot_shutdown_message": "Chatbot shutting down. Goodbye!"
+    }
     try:
-        api_config = load_config("hwagent/config/api.yaml")
-        prompts_config = load_config("hwagent/config/prompts.yaml")
-    except FileNotFoundError:
-        print("Error: One or both configuration files (api.yaml, prompts.yaml) not found.")
-        print("Ensure the files are located in the hwagent/config/ directory.")
-        return
-    except yaml.YAMLError as e:
-        print(f"Error reading YAML configuration: {e}")
+        api_config = load_yaml_config("hwagent/config/api.yaml")
+        prompts_config = load_yaml_config("hwagent/config/prompts.yaml")
+    except Exception:
+        print(prompts_config.get("agent_messages", {}).get("main", {}).get("config_load_fail_error", main_prompts_defaults["config_load_fail_error"]))
         return
 
-    # Extract API and prompt details
+    main_prompts = prompts_config.get("agent_messages", {}).get("main", main_prompts_defaults)
+    
     openrouter_config = api_config.get("openrouter", {})
     base_url = openrouter_config.get("base_url")
     model_name = openrouter_config.get("model")
 
     if not base_url or not model_name:
-        print("Error: 'base_url' or 'model' not found in api.yaml under 'openrouter'.")
+        print(main_prompts.get("api_config_missing_error", main_prompts_defaults["api_config_missing_error"]))
         return
 
-    # It's good practice to use environment variables for API keys
-    # However, the user's config doesn't specify where to get the key.
-    # For this example, we'll try to get it from an environment variable OPENROUTER_API_KEY.
-    # The user will need to set this environment variable.
     api_key = os.environ.get("OPENROUTER_API_KEY")
     if not api_key:
-        print("Error: Environment variable OPENROUTER_API_KEY not set.")
-        print("Please set it before running the bot: export OPENROUTER_API_KEY='your_api_key'")
+        print(main_prompts.get("api_key_missing_error", main_prompts_defaults["api_key_missing_error"]))
+        print(main_prompts.get("api_key_missing_instruction", main_prompts_defaults["api_key_missing_instruction"]))
         return
 
-    system_prompt = prompts_config.get("tech_solver", {}).get("system_prompt", "You are a helpful assistant.")
+    base_system_prompt = prompts_config.get("tech_solver", {}).get("system_prompt", "You are a helpful AI assistant.")
+    agent_react_prompts = prompts_config.get("agent_messages", {}).get("react_agent", {})
+    # ToolManager loads its own prompts internally using default path
 
     try:
-        client = OpenAI(
-            base_url=base_url,
-            api_key=api_key,
-        )
+        client = OpenAI(base_url=base_url, api_key=api_key)
+        # ToolManager now automatically discovers tools from hwagent/tools/ directory
+        tool_manager = ToolManager() 
+        if not tool_manager.tools:
+            print(main_prompts.get("tool_manager_init_warning", main_prompts_defaults["tool_manager_init_warning"]))
+
+        agent = ReActAgent(client, model_name, tool_manager, base_system_prompt, agent_react_prompts)
+
     except Exception as e:
-        print(f"Error initializing OpenAI client: {e}")
+        err_tpl = main_prompts.get("client_agent_init_error", main_prompts_defaults["client_agent_init_error"])
+        print(err_tpl.format(error=e))
         return
 
-    print("Chatbot started! Type 'exit' to quit.")
-    print(f"System prompt: {system_prompt.strip()}")
-
-    # Initialize conversation history with the system prompt
-    conversation_history: list[dict[str, str]] = [{"role": "system", "content": system_prompt.strip()}]
+    print(main_prompts.get("chatbot_started_message", main_prompts_defaults["chatbot_started_message"]))
+    prompt_snippet_to_display = base_system_prompt[:200] if isinstance(base_system_prompt, str) else str(base_system_prompt)[:200]
+    print(main_prompts.get("base_prompt_display", main_prompts_defaults["base_prompt_display"]).format(prompt_snippet=prompt_snippet_to_display))
 
     while True:
         user_input = input("You: ")
         if user_input.lower() == "exit":
-            print("Chatbot shutting down. Goodbye!")
+            print(main_prompts.get("chatbot_shutdown_message", main_prompts_defaults["chatbot_shutdown_message"]))
             break
 
-        # Add user message to history
-        conversation_history.append({"role": "user", "content": user_input})
+        if not user_input.strip():
+            continue
 
-        try:
-            completion = client.chat.completions.create(
-                model=model_name,
-                messages=conversation_history,
-            )
-            if completion.choices and completion.choices[0].message:
-                assistant_response = completion.choices[0].message.content
-                print(f"Bot: {assistant_response}")
-                # Add assistant response to history
-                if assistant_response: # Ensure we don't add empty responses
-                     conversation_history.append({"role": "assistant", "content": assistant_response})
-            else:
-                print("Bot: Failed to get a response from the model.")
-                # Remove the last user message if the API call failed to prevent issues on retry
-                conversation_history.pop()
-
-        except Exception as e:
-            print(f"Error calling API: {e}")
-            # Remove the last user message if the API call failed
-            if conversation_history and conversation_history[-1]["role"] == "user":
-                conversation_history.pop()
-
+        assistant_final_response = agent.process_user_request(user_input)
+        print(f"Bot: {assistant_final_response}")
 
 if __name__ == "__main__":
+    # With relative imports, this script should be run as a module from the parent directory:
+    # From HWAgent/ directory: python -m hwagent.main
+    # Running directly with `python main.py` from hwagent/ may not work due to relative imports.
     main()

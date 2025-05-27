@@ -1,8 +1,103 @@
 tech_solver:
   system_prompt: |
-    You are a homework solver for technical tasks.
-    You are given a task and you need to solve it.
-    You need to use the given tools to solve the task.
-    You need to return the solution in the given format.
+    You are a technical problem solver AI agent. Your goal is to solve technical tasks by writing, executing, and analyzing code.
+    
+    You have access to file manipulation and code execution tools that work in a temporary directory (hwagent/tmp/).
+    You can create files with code, execute them, read results, and iterate on solutions.
+    
+    For complex problems, break them down into steps:
+    1. Analyze the problem and plan your approach
+    2. Write code to solve the problem (Python, C++, etc.)
+    3. Execute the code and examine the output
+    4. Debug or refine if necessary
+    5. Present the final solution with intermediate steps
+    
+    Always show your work process including intermediate results, as this helps users understand your solution approach.
+    
+    Use the available tools to solve the task step by step. You can:
+    - Create files with code (create_file)
+    - Read file contents (read_file) 
+    - Execute code files (execute_code)
+    - List directory contents (list_files)
+    - Delete temporary files when done (delete_file)
+    
   user_prompt: |
     {{task}}
+
+# Add configuration section
+config:
+  tmp_directory: "tmp"
+
+# New section for agent's internal messages and templates
+agent_messages:
+  # Tool Manager messages
+  tool_manager:
+    no_tools_found_warning: "Warning: No tools found in {config_path}."
+    tool_load_error: "Error loading tools from {config_path}: {error}"
+    tool_not_found_error: "Error: Tool '{tool_name}' not found."
+    tool_execution_not_implemented_error: "Error: Tool '{tool_name}' execution not implemented."
+    create_file:
+      filepath_required_error: "Error: 'filepath' (string) parameter is required for create_file."
+      content_required_error: "Error: 'content' (string) parameter is required for create_file."
+      invalid_filepath_error: "Error: Invalid filepath '{filepath}'. Must be a relative path without '..'."
+      file_creation_success: "Successfully created file: {filepath}"
+      file_creation_error: "Error creating file '{filepath}': {error}"
+
+  # ReAct Agent messages
+  react_agent:
+    base_system_prompt_addition: |
+
+      You have access to the following tools. Use them when necessary by following the specified format.
+
+      TOOL_DEFINITIONS:
+      {tool_defs}
+
+      RESPONSE_FORMAT:
+      When you need to use a tool, or when you have a final answer, structure your response as follows:
+
+      THOUGHT:
+      Your reasoning process, an analysis of the user's query, and a plan to address it. Explain why you are taking certain actions.
+
+      PLAN:
+      (Optional) A numbered list of steps you plan to take.
+      1. Step 1
+      2. Step 2
+
+      TOOL_CALL:
+      (If using a tool via the API's tool_calls mechanism) The API will handle the JSON structure. Your thought process should lead to selecting a tool and its parameters.
+
+      FINAL_ANSWER:
+      (If you have completed the request) The final answer to the user.
+
+      If a tool is called by the API, I will execute it and respond with TOOL_OUTPUT. You should then continue the THOUGHT/PLAN/FINAL_ANSWER cycle.
+      If a tool execution results in an error, analyze the error in your THOUGHT and try to recover or ask the user for clarification.
+      Your goal is to fulfill the user's request accurately.
+    
+    # Parser messages
+    parser:
+      tool_call_missing_name_warning: "[System Error: TOOL_CALL JSON parsed, but 'tool_name' is missing.]"
+      tool_call_json_decode_error_warning: "Found TOOL_CALL marker but failed to decode JSON content. Error: {error}. Attempted segment (approx): '{segment}...' "
+      tool_call_no_brace_warning: "Found TOOL_CALL: marker but no subsequent JSON object opening brace '{' was found."
+      
+    # Processing messages
+    failed_to_get_model_response_error: "Error: Failed to get a message object from the model response."
+    failed_to_parse_tool_args_error: "[System Error: Failed to parse JSON arguments for tool {tool_name}. Error: {error}. Args: {args}]"
+    text_tool_call_warning: "Warning: LLM provided text-based TOOL_CALL (Name: {tool_name}) but no structured tool_call object. This tool call cannot be executed correctly without a tool_call_id from the API."
+    text_tool_call_system_note: "[System Note: You specified a TOOL_CALL in text ('{tool_name}') but did not use the structured tool calling mechanism. I cannot execute this without a tool_call_id from the API. Please try again using the correct tool format if a tool is needed, or provide a FINAL_ANSWER.]"
+    model_empty_response_note: "Bot: Model response was empty or did not provide a clear next action."
+    model_empty_response_system_note: "[System Note: Model response was empty or unparseable for action.]"
+    agent_processing_error: "Error during agent processing: {error}"
+    max_iterations_reached_message: "Bot: Reached maximum iterations without a final answer."
+    bot_text_but_no_action_note: "Bot: Model provided text but no actionable command (tool call or final answer) this turn. Continuing with text in history."
+  
+  # Main script messages
+  main:
+    config_load_fail_error: "Failed to load initial configurations. Exiting."
+    api_config_missing_error: "Error: 'base_url' or 'model' not found in api.yaml under 'openrouter'."
+    api_key_missing_error: "Error: Environment variable OPENROUTER_API_KEY not set."
+    api_key_missing_instruction: "Please set it before running the bot: export OPENROUTER_API_KEY='your_api_key'"
+    tool_manager_init_warning: "Warning: ToolManager initialized but no tools were loaded. Tool functionality will be limited."
+    client_agent_init_error: "Error initializing OpenAI client or Agent: {error}"
+    chatbot_started_message: "ReAct Chatbot started! Type 'exit' to quit."
+    base_prompt_display: "Base system prompt being used by agent: {prompt_snippet}..."
+    chatbot_shutdown_message: "Chatbot shutting down. Goodbye!"
