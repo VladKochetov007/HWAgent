@@ -1,50 +1,75 @@
-import os
-from hwagent.tools import BaseTool, ToolRegister
+"""
+Read File Tool - reads content from existing files.
+Refactored to use core components and follow SOLID principles.
+"""
+
+from typing import Any
+from hwagent.core import FileOperationTool, ToolExecutionResult, Constants
 
 
-@ToolRegister
-class ReadFileTool(BaseTool):
-    """Reads and returns the content of an existing file from the tmp directory. Use this to examine file contents or check results."""
+class ReadFileTool(FileOperationTool):
+    """Tool for reading content from existing files in temporary directory."""
     
-    def __init__(self, tmp_directory: str = "tmp"):
-        self.tmp_directory = tmp_directory
-        os.makedirs(self.tmp_directory, exist_ok=True)
+    @property
+    def name(self) -> str:
+        return "read_file"
     
-    def execute(self, filepath: str) -> str:
-        """Execute file reading.
+    @property
+    def description(self) -> str:
+        return "Read and return the content of an existing file from the temporary directory"
+    
+    @property
+    def parameters_schema(self) -> dict[str, Any]:
+        return {
+            "filepath": {
+                "type": "string",
+                "description": "Relative path to the file within temporary directory"
+            }
+        }
+    
+    def _execute_impl(self, **kwargs) -> ToolExecutionResult:
+        """Read file content."""
+        filepath = kwargs["filepath"]
         
-        Args:
-            filepath: The filename or relative path within tmp directory
-            
-        Returns:
-            str: File content or error message starting with 'Error:'
-        """
-        if not filepath or not isinstance(filepath, str):
-            return "Error: 'filepath' (string) parameter is required for read_file."
-
+        # Ensure file exists
+        exists_result = self._ensure_file_exists(filepath)
+        if exists_result.is_error():
+            return exists_result
+        
+        full_path = self._get_full_path(filepath)
+        
         try:
-            if ".." in filepath or os.path.isabs(filepath):
-                return f"Error: Invalid filepath '{filepath}'. Must be a relative path without '..'."
+            # Check file size before reading
+            from hwagent.core import FilePathValidator
+            size_result = FilePathValidator.validate_file_size(full_path)
+            if size_result.is_error():
+                return ToolExecutionResult.error(
+                    f"reading file '{filepath}'",
+                    size_result.details
+                )
             
-            # Construct full path within tmp directory
-            full_path = os.path.join(self.tmp_directory, filepath)
-            
-            if not os.path.exists(full_path):
-                return f"Error: File '{filepath}' does not exist in {self.tmp_directory}."
-            
-            if not os.path.isfile(full_path):
-                return f"Error: '{filepath}' is not a file."
-                
+            # Read file content
             with open(full_path, "r", encoding="utf-8") as f:
                 content = f.read()
             
-            # Add some metadata for better user experience
-            size = len(content)
-            lines = content.count('\n') + 1 if content else 0
+            # Get file info for metadata
+            file_info = self._get_file_info(filepath)
+            file_info["content_length"] = len(content)
+            file_info["lines_count"] = content.count('\n') + 1 if content else 0
             
-            return f"File: {filepath} ({size} chars, {lines} lines)\n" + "="*40 + "\n" + content
+            return ToolExecutionResult.success(
+                f"read file: {filepath}",
+                f"Content: {content}",
+                data=file_info
+            )
             
         except UnicodeDecodeError:
-            return f"Error: File '{filepath}' contains binary data and cannot be read as text."
-        except Exception as e:
-            return f"Error reading file '{filepath}': {e}" 
+            return ToolExecutionResult.error(
+                f"reading file '{filepath}'",
+                "File contains non-UTF-8 content"
+            )
+        except OSError as e:
+            return ToolExecutionResult.error(
+                f"reading file '{filepath}'",
+                str(e)
+            ) 

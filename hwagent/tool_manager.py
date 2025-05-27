@@ -1,155 +1,198 @@
-import os
+"""
+Tool Manager - manages tool discovery, registration and execution.
+Refactored to use core components and follow SOLID principles.
+"""
+
 import importlib
 import inspect
-from typing import Any
-from pathlib import Path
+import os
+from typing import Any, Dict, List
 
-from hwagent.config_loader import load_yaml_config
-from hwagent.tools import BaseTool, get_registered_tools
+from hwagent.core import (
+    BaseTool, Constants, ToolExecutionResult, ToolDefinition,
+    ConfigurationError, ToolExecutionError
+)
+
+
+class ToolDiscovery:
+    """Handles tool discovery from the tools directory. Following SRP."""
+    
+    def __init__(self, tools_directory: str = Constants.TOOLS_DIR):
+        self.tools_directory = tools_directory
+    
+    def discover_tools(self) -> List[type[BaseTool]]:
+        """Discover all tool classes in the tools directory."""
+        tool_classes = []
+        
+        if not os.path.exists(self.tools_directory):
+            return tool_classes
+        
+        # Get all Python files in tools directory
+        for filename in os.listdir(self.tools_directory):
+            if filename.endswith("_tool.py") and not filename.startswith("__"):
+                module_name = filename[:-3]  # Remove .py extension
+                tool_class = self._load_tool_from_module(module_name)
+                if tool_class:
+                    tool_classes.append(tool_class)
+        
+        return tool_classes
+    
+    def _load_tool_from_module(self, module_name: str) -> type[BaseTool] | None:
+        """Load tool class from module."""
+        try:
+            module_path = f"hwagent.tools.{module_name}"
+            module = importlib.import_module(module_path)
+            
+            # Find BaseTool subclasses in the module
+            for name, obj in inspect.getmembers(module, inspect.isclass):
+                if (issubclass(obj, BaseTool) and 
+                    obj is not BaseTool and 
+                    obj.__module__ == module_path):
+                    return obj
+            
+        except ImportError as e:
+            print(f"Warning: Could not import tool module '{module_name}': {e}")
+        except Exception as e:
+            print(f"Warning: Error loading tool from '{module_name}': {e}")
+        
+        return None
+
+
+class ToolRegistry:
+    """Manages tool registration and retrieval. Following SRP."""
+    
+    def __init__(self):
+        self._tools: Dict[str, BaseTool] = {}
+        self._tool_definitions: Dict[str, ToolDefinition] = {}
+    
+    def register_tool(self, tool_instance: BaseTool) -> None:
+        """Register a tool instance."""
+        tool_name = tool_instance.name
+        self._tools[tool_name] = tool_instance
+        self._tool_definitions[tool_name] = tool_instance.get_tool_definition()
+    
+    def get_tool(self, tool_name: str) -> BaseTool | None:
+        """Get tool instance by name."""
+        return self._tools.get(tool_name)
+    
+    def get_tool_definition(self, tool_name: str) -> ToolDefinition | None:
+        """Get tool definition by name."""
+        return self._tool_definitions.get(tool_name)
+    
+    def get_all_tools(self) -> Dict[str, BaseTool]:
+        """Get all registered tools."""
+        return self._tools.copy()
+    
+    def get_all_tool_definitions(self) -> List[ToolDefinition]:
+        """Get all tool definitions for API registration."""
+        return list(self._tool_definitions.values())
+    
+    def get_tool_names(self) -> List[str]:
+        """Get list of all tool names."""
+        return list(self._tools.keys())
+
+
+class ToolExecutionService:
+    """Handles tool execution with proper error handling. Following SRP."""
+    
+    def __init__(self, tool_registry: ToolRegistry):
+        self.tool_registry = tool_registry
+    
+    def execute_tool(self, tool_name: str, parameters: Dict[str, Any]) -> ToolExecutionResult:
+        """Execute a tool with given parameters."""
+        try:
+            # Get tool instance
+            tool = self.tool_registry.get_tool(tool_name)
+            if not tool:
+                return ToolExecutionResult.error(
+                    f"Tool '{tool_name}' not found",
+                    f"Available tools: {', '.join(self.tool_registry.get_tool_names())}"
+                )
+            
+            # Execute tool
+            result = tool.execute(**parameters)
+            
+            # Ensure we return a ToolExecutionResult
+            if not isinstance(result, ToolExecutionResult):
+                return ToolExecutionResult.error(
+                    f"Tool '{tool_name}' returned invalid result type",
+                    f"Expected ToolExecutionResult, got {type(result).__name__}"
+                )
+            
+            return result
+            
+        except Exception as e:
+            raise ToolExecutionError(tool_name, "Execution failed", str(e))
 
 
 class ToolManager:
-    def __init__(self, tools_dir: str = "hwagent/tools", prompts_config_path: str = "hwagent/config/prompts.yaml"):
-        self.tools_dir = tools_dir
-        self.tool_instances: dict[str, BaseTool] = {}
-        self.tool_classes: dict[str, type[BaseTool]] = {}
+    """
+    Main tool manager coordinating all tool operations.
+    Following Facade pattern to provide simple interface.
+    """
+    
+    def __init__(self, tmp_directory: str = Constants.DEFAULT_TMP_DIRECTORY):
+        self.tmp_directory = tmp_directory
+        self.discovery = ToolDiscovery()
+        self.registry = ToolRegistry()
+        self.execution_service = ToolExecutionService(self.registry)
         
-        # Load configuration including tmp_directory
+        # Auto-discover and register tools
+        self._initialize_tools()
+    
+    def _initialize_tools(self) -> None:
+        """Initialize all tools by discovering and registering them."""
         try:
-            prompts_cfg = load_yaml_config(prompts_config_path)
-            self.messages = prompts_cfg.get("agent_messages", {}).get("tool_manager", {})
-            self.config = prompts_cfg.get("config", {})
-            self.tmp_directory = self.config.get("tmp_directory", "tmp")
-        except Exception:
-            self.messages = {}
-            self.config = {}
-            self.tmp_directory = "tmp"
-        
-        # Ensure tmp directory exists
-        os.makedirs(self.tmp_directory, exist_ok=True)
-        
-        self._discover_and_load_tools()
-
-    def _discover_and_load_tools(self):
-        """Automatically discover and load all registered tool classes."""
-        # First, import all tool modules to trigger registration
-        self._import_tool_modules()
-        
-        # Get all registered tools
-        registered_tools = get_registered_tools()
-        
-        if not registered_tools:
-            print("Warning: No tools were registered.")
-            return
-
-        # Instantiate all registered tools
-        for tool_name, tool_class in registered_tools.items():
-            try:
-                self.tool_classes[tool_name] = tool_class
-                
-                # Check if tool constructor accepts tmp_directory parameter
-                sig = inspect.signature(tool_class.__init__)
-                if 'tmp_directory' in sig.parameters:
-                    self.tool_instances[tool_name] = tool_class(tmp_directory=self.tmp_directory)
-                else:
-                    self.tool_instances[tool_name] = tool_class()
-                
-                print(f"Loaded tool: {tool_name} from {tool_class.__module__}")
-                
-            except Exception as e:
-                print(f"Error instantiating tool {tool_name}: {e}")
-                continue
-
-        if not self.tool_instances:
-            print("Warning: No tools were successfully instantiated.")
-
-    def _import_tool_modules(self):
-        """Import all Python modules in the tools directory to trigger tool registration."""
-        tools_path = Path(self.tools_dir)
-        if not tools_path.exists():
-            print(f"Warning: Tools directory {self.tools_dir} does not exist.")
-            return
-
-        # Get all Python files in tools directory
-        for py_file in tools_path.glob("*.py"):
-            if py_file.name.startswith("__"):
-                continue  # Skip __init__.py and other special files
+            tool_classes = self.discovery.discover_tools()
             
-            module_name = py_file.stem
-            try:
-                # Import the module dynamically to trigger @ToolRegister decorators
-                module_path = f"hwagent.tools.{module_name}"
-                importlib.import_module(module_path)
+            for tool_class in tool_classes:
+                try:
+                    # Create tool instance with tmp_directory
+                    tool_instance = tool_class(tmp_directory=self.tmp_directory)
+                    self.registry.register_tool(tool_instance)
+                    print(f"Registered tool: {tool_instance.name}")
+                except Exception as e:
+                    print(f"Warning: Failed to register tool {tool_class.__name__}: {e}")
+            
+            if not self.registry.get_tool_names():
+                raise ConfigurationError("No tools were successfully registered")
                 
-            except Exception as e:
-                print(f"Error importing tool module {module_name}: {e}")
-
-    @property 
-    def tools(self) -> dict[str, BaseTool]:
-        """Get dictionary of tool instances for backward compatibility."""
-        return self.tool_instances
-
-    def get_tool_definitions_for_prompt(self) -> str:
-        """Get tool definitions formatted for LLM prompt."""
-        if not self.tool_instances:
-            return "No tools available."
-        
-        tools_for_prompt = []
-        for tool_name, tool_instance in self.tool_instances.items():
-            tool_class = self.tool_classes[tool_name]
-            tools_for_prompt.append({
-                "name": tool_name,
-                "description": tool_class.get_description(),
-                "parameters": tool_class.get_parameters()
-            })
-        
-        import json
-        return json.dumps({"tools": tools_for_prompt}, indent=2)
-
-    def get_tools_for_api(self) -> list[dict[str, Any]]:
-        """Returns tool definitions in the format required by OpenAI API's 'tools' parameter."""
-        if not self.tool_instances:
-            return []
-        
-        api_tools = []
-        for tool_name, tool_instance in self.tool_instances.items():
-            tool_class = self.tool_classes[tool_name]
-            parameters = tool_class.get_parameters()
-            
-            properties = {}
-            required_params = []
-            
-            for param_name, param_def in parameters.items():
-                properties[param_name] = {
-                    "type": param_def["type"],
-                    "description": param_def["description"]
-                }
-                # For now, assume all parameters are required
-                # You could extend BaseTool to specify optional parameters
-                required_params.append(param_name)
-            
-            api_tools.append({
-                "type": "function",
-                "function": {
-                    "name": tool_name,
-                    "description": tool_class.get_description(),
-                    "parameters": {
-                        "type": "object",
-                        "properties": properties,
-                        "required": required_params
-                    }
-                }
-            })
-        
-        return api_tools
-
-    def execute_tool(self, tool_name: str, parameters: dict[str, Any]) -> str:
-        """Execute a tool by name with given parameters."""
-        if tool_name not in self.tool_instances:
-            return f"Error: Tool '{tool_name}' not found."
-        
-        tool_instance = self.tool_instances[tool_name]
-        try:
-            return tool_instance.execute(**parameters)
         except Exception as e:
-            return f"Error executing tool '{tool_name}': {e}" 
+            raise ConfigurationError("Failed to initialize tools", str(e))
+    
+    def execute_tool(self, tool_name: str, parameters: Dict[str, Any]) -> str:
+        """
+        Execute a tool and return formatted result.
+        This method maintains backward compatibility with the old interface.
+        """
+        try:
+            result = self.execution_service.execute_tool(tool_name, parameters)
+            return result.to_string()
+        except ToolExecutionError as e:
+            return str(e)
+        except Exception as e:
+            return f"Error: Unexpected error executing tool '{tool_name}': {e}"
+    
+    def get_tools_for_llm(self) -> List[Dict[str, Any]]:
+        """Get tool definitions formatted for LLM API."""
+        return [
+            definition.to_api_format() 
+            for definition in self.registry.get_all_tool_definitions()
+        ]
+    
+    def get_tool_names(self) -> List[str]:
+        """Get list of available tool names."""
+        return self.registry.get_tool_names()
+    
+    def get_tool_count(self) -> int:
+        """Get number of registered tools."""
+        return len(self.registry.get_tool_names())
+    
+    def reload_tools(self) -> None:
+        """Reload all tools (useful for development)."""
+        # Clear current registry
+        self.registry = ToolRegistry()
+        self.execution_service = ToolExecutionService(self.registry)
+        
+        # Re-initialize tools
+        self._initialize_tools() 

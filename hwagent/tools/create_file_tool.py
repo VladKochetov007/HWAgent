@@ -1,49 +1,80 @@
-import os
-from pathlib import Path
-from hwagent.tools import BaseTool, ToolRegister
+"""
+Create File Tool - creates new files with specified content.
+Refactored to use core components and follow SOLID principles.
+"""
+
+from typing import Any
+from hwagent.core import FileOperationTool, ToolExecutionResult, ParameterValidator
 
 
-@ToolRegister
-class CreateFileTool(BaseTool):
-    """Creates a new file with the specified content in the tmp directory. Use this when you need to generate a new file."""
+class CreateFileTool(FileOperationTool):
+    """Tool for creating new files with specified content in temporary directory."""
     
-    def __init__(self, tmp_directory: str = "tmp"):
-        self.tmp_directory = tmp_directory
-        os.makedirs(self.tmp_directory, exist_ok=True)
+    @property
+    def name(self) -> str:
+        return "create_file"
     
-    def execute(self, filepath: str, content: str) -> str:
-        """Execute file creation.
+    @property
+    def description(self) -> str:
+        return "Create a new file with specified content in the temporary directory"
+    
+    @property
+    def parameters_schema(self) -> dict[str, Any]:
+        return {
+            "filepath": {
+                "type": "string",
+                "description": "Relative path for the new file within temporary directory"
+            },
+            "content": {
+                "type": "string", 
+                "description": "Content to write to the file"
+            }
+        }
+    
+    def validate_parameters(self, parameters: dict[str, Any]) -> ToolExecutionResult:
+        """Validate create file specific parameters."""
+        # Validate common file parameters (filepath)
+        base_result = super().validate_parameters(parameters)
+        if base_result.is_error():
+            return base_result
         
-        Args:
-            filepath: The filename or relative path within tmp directory
-            content: The content to write into the new file
-            
-        Returns:
-            str: Success message or error message starting with 'Error:'
-        """
-        if not filepath or not isinstance(filepath, str):
-            return "Error: 'filepath' (string) parameter is required for create_file."
+        # Validate content parameter
+        content = parameters.get("content")
+        content_result = ParameterValidator.validate_required_string(content, "content")
+        if content_result.is_error():
+            return content_result
         
-        if content is None or not isinstance(content, str):
-            return "Error: 'content' (string) parameter is required for create_file."
-
+        return ToolExecutionResult.success("All parameters validated successfully")
+    
+    def _execute_impl(self, **kwargs) -> ToolExecutionResult:
+        """Create file with specified content."""
+        filepath = kwargs["filepath"]
+        content = kwargs["content"]
+        
+        full_path = self._get_full_path(filepath)
+        
         try:
-            # Ensure file is within tmp directory
-            if ".." in filepath or os.path.isabs(filepath):
-                return f"Error: Invalid filepath '{filepath}'. Must be a relative path without '..'."
+            # Ensure parent directory exists
+            import os
+            parent_dir = os.path.dirname(full_path)
+            if parent_dir:
+                os.makedirs(parent_dir, exist_ok=True)
             
-            # Construct full path within tmp directory
-            full_path = os.path.join(self.tmp_directory, filepath)
-            
-            # Create intermediate directories if needed
-            dir_name = os.path.dirname(full_path)
-            if dir_name:
-                os.makedirs(dir_name, exist_ok=True)
-                
+            # Write file content
             with open(full_path, "w", encoding="utf-8") as f:
                 f.write(content)
             
-            # Return the path relative to tmp for tool consistency
-            return f"Successfully created file: {filepath} (in {self.tmp_directory})"
-        except Exception as e:
-            return f"Error creating file '{filepath}': {e}" 
+            # Get file info for response
+            file_info = self._get_file_info(filepath)
+            
+            return ToolExecutionResult.success(
+                f"created file: {filepath}",
+                f"Size: {file_info.get('size_bytes', 0)} bytes",
+                data=file_info
+            )
+            
+        except OSError as e:
+            return ToolExecutionResult.error(
+                f"creating file '{filepath}'",
+                str(e)
+            ) 

@@ -1,41 +1,59 @@
+"""
+Delete File Tool - deletes existing files.
+Refactored to use core components and follow SOLID principles.
+"""
+
 import os
-from hwagent.tools import BaseTool, ToolRegister
+from typing import Any
+from hwagent.core import FileOperationTool, ToolExecutionResult
 
 
-@ToolRegister
-class DeleteFileTool(BaseTool):
-    """Deletes an existing file from the tmp directory. Use this when you need to remove a file from the filesystem."""
+class DeleteFileTool(FileOperationTool):
+    """Tool for deleting existing files from temporary directory."""
     
-    def __init__(self, tmp_directory: str = "tmp"):
-        self.tmp_directory = tmp_directory
-        os.makedirs(self.tmp_directory, exist_ok=True)
+    @property
+    def name(self) -> str:
+        return "delete_file"
     
-    def execute(self, filepath: str) -> str:
-        """Execute file deletion.
+    @property
+    def description(self) -> str:
+        return "Delete an existing file from the temporary directory"
+    
+    @property
+    def parameters_schema(self) -> dict[str, Any]:
+        return {
+            "filepath": {
+                "type": "string",
+                "description": "Relative path to the file to delete within temporary directory"
+            }
+        }
+    
+    def _execute_impl(self, **kwargs) -> ToolExecutionResult:
+        """Delete file."""
+        filepath = kwargs["filepath"]
         
-        Args:
-            filepath: The filename or relative path within tmp directory
-            
-        Returns:
-            str: Success message or error message starting with 'Error:'
-        """
-        if not filepath or not isinstance(filepath, str):
-            return "Error: 'filepath' (string) parameter is required for delete_file."
-
+        # Ensure file exists before deletion
+        exists_result = self._ensure_file_exists(filepath)
+        if exists_result.is_error():
+            return exists_result
+        
+        full_path = self._get_full_path(filepath)
+        
         try:
-            if ".." in filepath or os.path.isabs(filepath):
-                return f"Error: Invalid filepath '{filepath}'. Must be a relative path without '..'."
+            # Get file info before deletion for confirmation
+            file_info = self._get_file_info(filepath)
             
-            # Construct full path within tmp directory
-            full_path = os.path.join(self.tmp_directory, filepath)
-            
-            if not os.path.exists(full_path):
-                return f"Error: File '{filepath}' does not exist in {self.tmp_directory}."
-            
-            if not os.path.isfile(full_path):
-                return f"Error: '{filepath}' is not a file."
-                
+            # Delete the file
             os.remove(full_path)
-            return f"Successfully deleted file: {filepath} (from {self.tmp_directory})"
-        except Exception as e:
-            return f"Error deleting file '{filepath}': {e}" 
+            
+            return ToolExecutionResult.success(
+                f"deleted file: {filepath}",
+                f"Removed file of {file_info.get('size_bytes', 0)} bytes",
+                data={"deleted_file": filepath, "previous_info": file_info}
+            )
+            
+        except OSError as e:
+            return ToolExecutionResult.error(
+                f"deleting file '{filepath}'",
+                str(e)
+            ) 

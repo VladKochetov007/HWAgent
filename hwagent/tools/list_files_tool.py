@@ -1,58 +1,119 @@
+"""
+List Files Tool - lists files and directories.
+Refactored to use core components and follow SOLID principles.
+"""
+
 import os
-from hwagent.tools import BaseTool, ToolRegister
+from typing import Any
+from hwagent.core import BaseTool, ToolExecutionResult, ParameterValidator
 
 
-@ToolRegister
 class ListFilesTool(BaseTool):
-    """Lists files and directories in the tmp directory or specified subdirectory. Use this to explore the filesystem structure."""
+    """Tool for listing files and directories in temporary directory."""
     
-    def __init__(self, tmp_directory: str = "tmp"):
-        self.tmp_directory = tmp_directory
-        os.makedirs(self.tmp_directory, exist_ok=True)
+    @property
+    def name(self) -> str:
+        return "list_files"
     
-    def execute(self, directory: str = ".") -> str:
-        """Execute directory listing.
+    @property
+    def description(self) -> str:
+        return "List files and directories in the temporary directory or specified subdirectory"
+    
+    @property
+    def parameters_schema(self) -> dict[str, Any]:
+        return {
+            "path": {
+                "type": "string",
+                "description": "Optional subdirectory path within temporary directory (default: root)"
+            }
+        }
+    
+    def validate_parameters(self, parameters: dict[str, Any]) -> ToolExecutionResult:
+        """Validate list files parameters."""
+        base_result = super().validate_parameters(parameters)
+        if base_result.is_error():
+            return base_result
         
-        Args:
-            directory: The directory path relative to tmp directory (defaults to tmp root)
+        # Path parameter is optional
+        path = parameters.get("path", "")
+        if path:
+            path_result = ParameterValidator.validate_optional_string(path, "path")
+            if path_result.is_error():
+                return path_result
             
-        Returns:
-            str: List of files and directories or error message starting with 'Error:'
-        """
-        if not isinstance(directory, str):
-            return "Error: 'directory' must be a string."
-
+            # Validate path safety if provided
+            if ".." in path or os.path.isabs(path):
+                return ToolExecutionResult.error(
+                    "Invalid path parameter",
+                    "Path must be relative and not contain '..'"
+                )
+        
+        return ToolExecutionResult.success("Parameters validated successfully")
+    
+    def _execute_impl(self, **kwargs) -> ToolExecutionResult:
+        """List files and directories."""
+        path = kwargs.get("path", "")
+        
+        # Determine target directory
+        if path:
+            target_dir = self._get_full_path(path)
+        else:
+            target_dir = self.tmp_directory
+        
         try:
-            if ".." in directory or os.path.isabs(directory):
-                return f"Error: Invalid directory path '{directory}'. Must be a relative path without '..'."
+            # Check if target directory exists
+            if not os.path.exists(target_dir):
+                return ToolExecutionResult.error(
+                    f"Directory not found: {path or 'root'}",
+                    f"Full path: {target_dir}"
+                )
             
-            # Construct full path within tmp directory
-            if directory == ".":
-                full_path = self.tmp_directory
-                display_path = f"{self.tmp_directory}/"
-            else:
-                full_path = os.path.join(self.tmp_directory, directory)
-                display_path = f"{self.tmp_directory}/{directory}/"
+            if not os.path.isdir(target_dir):
+                return ToolExecutionResult.error(
+                    f"Path is not a directory: {path or 'root'}",
+                    f"Full path: {target_dir}"
+                )
             
-            if not os.path.exists(full_path):
-                return f"Error: Directory '{directory}' does not exist in {self.tmp_directory}."
-            
-            if not os.path.isdir(full_path):
-                return f"Error: '{directory}' is not a directory."
-            
+            # List directory contents
             items = []
-            for item in sorted(os.listdir(full_path)):
-                item_path = os.path.join(full_path, item)
-                if os.path.isdir(item_path):
-                    items.append(f"[DIR]  {item}/")
-                else:
-                    size = os.path.getsize(item_path)
-                    items.append(f"[FILE] {item} ({size} bytes)")
+            for item_name in sorted(os.listdir(target_dir)):
+                item_path = os.path.join(target_dir, item_name)
+                item_info = {
+                    "name": item_name,
+                    "type": "directory" if os.path.isdir(item_path) else "file"
+                }
+                
+                if item_info["type"] == "file":
+                    try:
+                        stat = os.stat(item_path)
+                        item_info["size_bytes"] = stat.st_size
+                        item_info["modified_time"] = stat.st_mtime
+                    except OSError:
+                        pass
+                
+                items.append(item_info)
             
+            # Format output
             if not items:
-                return f"Directory '{display_path}' is empty."
+                content = f"Directory '{path or 'root'}' is empty."
+            else:
+                lines = [f"Contents of '{path or 'root'}':"]
+                for item in items:
+                    if item["type"] == "directory":
+                        lines.append(f"  📁 {item['name']}/")
+                    else:
+                        size_info = f" ({item.get('size_bytes', 0)} bytes)" if 'size_bytes' in item else ""
+                        lines.append(f"  📄 {item['name']}{size_info}")
+                content = "\n".join(lines)
             
-            return f"Contents of '{display_path}':\n" + "\n".join(items)
+            return ToolExecutionResult.success(
+                f"listed directory: {path or 'root'}",
+                content,
+                data={"items": items, "count": len(items)}
+            )
             
-        except Exception as e:
-            return f"Error listing directory '{directory}': {e}" 
+        except OSError as e:
+            return ToolExecutionResult.error(
+                f"listing directory '{path or 'root'}'",
+                str(e)
+            ) 
