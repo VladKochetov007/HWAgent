@@ -188,6 +188,22 @@ class ToolManager:
         """Get number of registered tools."""
         return len(self.registry.get_tool_names())
     
+    def get_tool_definitions_for_prompt(self) -> str:
+        """Get tool definitions formatted for text prompt (backward compatibility)."""
+        definitions = []
+        for definition in self.registry.get_all_tool_definitions():
+            tool_def = f"- {definition.name}: {definition.description}"
+            if definition.parameters:
+                params = ", ".join([f"{name}: {param.get('description', 'No description')}" 
+                                  for name, param in definition.parameters.get('properties', {}).items()])
+                tool_def += f" (Parameters: {params})"
+            definitions.append(tool_def)
+        return "\n".join(definitions)
+    
+    def get_tools_for_api(self) -> List[Dict[str, Any]]:
+        """Get tool definitions for API (backward compatibility alias)."""
+        return self.get_tools_for_llm()
+    
     def reload_tools(self) -> None:
         """Reload all tools (useful for development)."""
         # Clear current registry

@@ -7,9 +7,9 @@ import os
 from abc import ABC, abstractmethod
 from typing import Any
 
-from .constants import Constants
-from .models import ToolExecutionResult, ToolDefinition
-from .validators import FilePathValidator, ParameterValidator
+from hwagent.core.constants import Constants
+from hwagent.core.models import ToolExecutionResult, ToolDefinition
+from hwagent.core.validators import FilePathValidator, ParameterValidator
 
 
 class BaseTool(ABC):

@@ -20,6 +20,7 @@ class Constants:
     
     # Environment variables
     OPENROUTER_API_KEY: Final[str] = "OPENROUTER_API_KEY"
+    LANGSEARCH_API_KEY: Final[str] = "LANGSEARCH_API_KEY"
     
     # Agent configuration
     MAX_ITERATIONS: Final[int] = 7
@@ -75,4 +76,19 @@ class Constants:
     # Compiler commands
     COMPILER_GCC: Final[str] = "gcc"
     COMPILER_GPP: Final[str] = "g++"
-    PYTHON_EXECUTABLE: Final[str] = "python" 
+    PYTHON_EXECUTABLE: Final[str] = "python"
+    
+    # LangSearch API
+    LANGSEARCH_API_URL: Final[str] = "https://api.langsearch.com/v1/web-search"
+    
+    # Web search defaults
+    DEFAULT_SEARCH_COUNT: Final[int] = 5
+    MAX_SEARCH_COUNT: Final[int] = 10
+    MIN_SEARCH_COUNT: Final[int] = 1
+    
+    # Search freshness options
+    FRESHNESS_ONE_DAY: Final[str] = "oneDay"
+    FRESHNESS_ONE_WEEK: Final[str] = "oneWeek"
+    FRESHNESS_ONE_MONTH: Final[str] = "oneMonth"
+    FRESHNESS_ONE_YEAR: Final[str] = "oneYear"
+    FRESHNESS_NO_LIMIT: Final[str] = "noLimit" 

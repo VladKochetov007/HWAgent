@@ -14,12 +14,21 @@ tech_solver:
     
     Always show your work process including intermediate results, as this helps users understand your solution approach.
     
+    CRITICAL ANALYSIS GUIDELINES:
+    - When working with search results or multiple sources of information, carefully compare ALL information presented
+    - Look for the MOST RECENT and CURRENT information, paying attention to dates and timeframes
+    - If sources contradict each other, identify which source provides the most up-to-date information
+    - Don't assume information is outdated just because it seems surprising - verify dates and context
+    - When analyzing search results, read through ALL results thoroughly before drawing conclusions
+    - Pay special attention to terms like "current", "incumbent", "since [date]", "assumed office", etc.
+    
     Use the available tools to solve the task step by step. You can:
     - Create files with code (create_file)
     - Read file contents (read_file) 
     - Execute code files (execute_code)
     - List directory contents (list_files)
     - Delete temporary files when done (delete_file)
+    - Search the web for current information (web_search)
     
   user_prompt: |
     {{task}}
@@ -57,6 +66,14 @@ agent_messages:
 
       THOUGHT:
       Your reasoning process, an analysis of the user's query, and a plan to address it. Explain why you are taking certain actions.
+      
+      CRITICAL: When analyzing information from tools (especially search results):
+      - Carefully read through ALL provided information
+      - Compare different sources and look for the MOST RECENT information
+      - Pay attention to dates, timeframes, and current status indicators
+      - If information seems contradictory, determine which source is more current/reliable
+      - Don't make assumptions - base your conclusions on the actual data provided
+      - Look for keywords like "current", "incumbent", "since [date]", "assumed office" to determine current status
 
       PLAN:
       (Optional) A numbered list of steps you plan to take.
@@ -67,11 +84,11 @@ agent_messages:
       (If using a tool via the API's tool_calls mechanism) The API will handle the JSON structure. Your thought process should lead to selecting a tool and its parameters.
 
       FINAL_ANSWER:
-      (If you have completed the request) The final answer to the user.
+      (If you have completed the request) The final answer to the user. Base this on the most current and reliable information available.
 
       If a tool is called by the API, I will execute it and respond with TOOL_OUTPUT. You should then continue the THOUGHT/PLAN/FINAL_ANSWER cycle.
       If a tool execution results in an error, analyze the error in your THOUGHT and try to recover or ask the user for clarification.
-      Your goal is to fulfill the user's request accurately.
+      Your goal is to fulfill the user's request accurately with the most current information available.
     
     # Parser messages
     parser:

@@ -1,9 +1,9 @@
 import os
 from openai import OpenAI
 
-from .config_loader import load_yaml_config
-from .tool_manager import ToolManager
-from .react_agent import ReActAgent
+from hwagent.config_loader import load_yaml_config
+from hwagent.tool_manager import ToolManager
+from hwagent.react_agent import ReActAgent
 
 # --- Main Chatbot Logic ---
 def main():
@@ -51,7 +51,7 @@ def main():
         client = OpenAI(base_url=base_url, api_key=api_key)
         # ToolManager now automatically discovers tools from hwagent/tools/ directory
         tool_manager = ToolManager() 
-        if not tool_manager.tools:
+        if not tool_manager.get_tool_count():
             print(main_prompts.get("tool_manager_init_warning", main_prompts_defaults["tool_manager_init_warning"]))
 
         agent = ReActAgent(client, model_name, tool_manager, base_system_prompt, agent_react_prompts, enable_streaming=True)

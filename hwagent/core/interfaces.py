@@ -6,7 +6,7 @@ Following ISP - segregated interfaces for specific responsibilities.
 
 from abc import ABC, abstractmethod
 from typing import Any, Iterator
-from .models import ToolExecutionResult, ParsedLLMResponse
+from hwagent.core.models import ToolExecutionResult, ParsedLLMResponse
 
 
 class ConfigLoader(ABC):

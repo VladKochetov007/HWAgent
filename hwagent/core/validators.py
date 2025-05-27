@@ -7,9 +7,9 @@ import os
 from pathlib import Path
 from typing import Any
 
-from .constants import Constants
-from .exceptions import ValidationError
-from .models import ToolExecutionResult, ExecutionStatus
+from hwagent.core.constants import Constants
+from hwagent.core.exceptions import ValidationError
+from hwagent.core.models import ToolExecutionResult, ExecutionStatus
 
 
 class FilePathValidator:
@@ -137,6 +137,42 @@ class ParameterValidator:
             )
         
         return ToolExecutionResult.success(f"Language '{language}' is valid")
+    
+    @staticmethod
+    def validate_search_count(count: int) -> ToolExecutionResult:
+        """Validate search results count parameter."""
+        if not isinstance(count, int):
+            return ToolExecutionResult.error(
+                "Search count must be an integer",
+                f"Got: {type(count).__name__}"
+            )
+        
+        if count < Constants.MIN_SEARCH_COUNT or count > Constants.MAX_SEARCH_COUNT:
+            return ToolExecutionResult.error(
+                f"Search count must be between {Constants.MIN_SEARCH_COUNT} and {Constants.MAX_SEARCH_COUNT}",
+                f"Got: {count}"
+            )
+        
+        return ToolExecutionResult.success(f"Search count '{count}' is valid")
+    
+    @staticmethod
+    def validate_freshness_parameter(freshness: str) -> ToolExecutionResult:
+        """Validate search freshness parameter."""
+        valid_freshness = {
+            Constants.FRESHNESS_ONE_DAY,
+            Constants.FRESHNESS_ONE_WEEK,
+            Constants.FRESHNESS_ONE_MONTH,
+            Constants.FRESHNESS_ONE_YEAR,
+            Constants.FRESHNESS_NO_LIMIT
+        }
+        
+        if freshness not in valid_freshness:
+            return ToolExecutionResult.error(
+                f"Invalid freshness: {freshness}",
+                f"Valid options: {', '.join(valid_freshness)}"
+            )
+        
+        return ToolExecutionResult.success(f"Freshness '{freshness}' is valid")
 
 
 class ConfigValidator:
