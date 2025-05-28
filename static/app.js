@@ -44,52 +44,57 @@ class HWAgentApp {
     }
     
     /**
-     * Cache DOM elements for better performance
+     * Cache DOM elements
      */
     cacheElements() {
+        // Chat elements
         this.elements = {
-            // Status and connection
-            connectionStatus: document.getElementById('connectionStatus'),
-            statusDot: document.querySelector('.status-dot'),
-            statusText: document.querySelector('.status-text'),
-            
-            // Chat
+            // Main containers
             chatMessages: document.getElementById('chatMessages'),
             messageInput: document.getElementById('messageInput'),
             sendButton: document.getElementById('sendButton'),
-            typingIndicator: document.getElementById('typingIndicator'),
             
-            // Sidebar
-            toolsList: document.getElementById('toolsList'),
-            sessionId: document.getElementById('sessionId'),
-            messageCount: document.getElementById('messageCount'),
-            sessionStatus: document.getElementById('sessionStatus'),
+            // Sidebar elements
+            sidebar: document.querySelector('.sidebar'),
+            sidebarToggle: document.querySelector('.sidebar-toggle'),
+            headerSidebarToggle: document.getElementById('headerSidebarToggle'),
+            sidebarOverlay: document.getElementById('sidebarOverlay'),
             
             // Settings
             streamingToggle: document.getElementById('streamingToggle'),
             autoScrollToggle: document.getElementById('autoScrollToggle'),
             
-            // Actions
+            // Action buttons
             clearContextBtn: document.getElementById('clearContextBtn'),
             exportChatBtn: document.getElementById('exportChatBtn'),
             
-            // Modals and overlays
+            // UI elements
             loadingOverlay: document.getElementById('loadingOverlay'),
+            typingIndicator: document.getElementById('typingIndicator'),
+            
+            // Session info
+            sessionId: document.getElementById('sessionId'),
+            messageCount: document.getElementById('messageCount'),
+            sessionStatus: document.getElementById('sessionStatus'),
+            connectionStatus: document.getElementById('connectionStatus'),
+            connectionText: document.getElementById('connectionText'),
+            
+            // Error modal
             errorModal: document.getElementById('errorModal'),
-            errorMessage: document.getElementById('errorMessage'),
             errorModalClose: document.getElementById('errorModalClose'),
             errorModalOk: document.getElementById('errorModalOk'),
-
-            // TMP Directory Explorer
-            tmpExplorerContainer: document.getElementById('tmpDirectoryExplorer'),
-            tmpRefreshBtn: document.getElementById('tmpRefreshBtn'),
-            tmpPathDisplay: document.getElementById('tmpPathDisplay'),
-            tmpUpBtn: document.getElementById('tmpUpBtn'),
+            errorMessage: document.getElementById('errorMessage'),
+            
+            // TMP directory elements
             tmpFileList: document.getElementById('tmpFileList'),
+            tmpCurrentPath: document.getElementById('tmpCurrentPath'),
+            tmpUpBtn: document.getElementById('tmpUpBtn'),
+            tmpRefreshBtn: document.getElementById('tmpRefreshBtn'),
+            tmpClosePreviewBtn: document.getElementById('closePreviewBtn'),
             tmpFilePreview: document.getElementById('tmpFilePreview'),
-            tmpPreviewFileName: document.getElementById('previewFileName'),
-            tmpPreviewFileContent: document.getElementById('previewFileContent'),
-            tmpClosePreviewBtn: document.getElementById('closePreviewBtn')
+            
+            // Tools
+            toolsList: document.getElementById('toolsList')
         };
     }
     
@@ -129,17 +134,14 @@ class HWAgentApp {
         this.elements.errorModalClose.addEventListener('click', () => this.hideErrorModal());
         this.elements.errorModalOk.addEventListener('click', () => this.hideErrorModal());
         
-        // Click outside modal to close
-        this.elements.errorModal.addEventListener('click', (e) => {
+        // Error modal click outside to close
+        this.elements.errorModal?.addEventListener('click', (e) => {
             if (e.target === this.elements.errorModal) {
                 this.hideErrorModal();
             }
         });
 
-        // TMP Explorer buttons
-        if (this.elements.tmpRefreshBtn) {
-            this.elements.tmpRefreshBtn.addEventListener('click', () => this.loadTmpFiles(this.currentTmpPath));
-        }
+        // TMP file buttons
         if (this.elements.tmpUpBtn) {
             this.elements.tmpUpBtn.addEventListener('click', () => this.navigateTmpUp());
         }
@@ -147,8 +149,14 @@ class HWAgentApp {
             this.elements.tmpClosePreviewBtn.addEventListener('click', () => this.closeTmpFilePreview());
         }
 
-        // Collapsible sections
+        // Setup collapsible sections
         this.setupCollapsibleSections();
+        
+        // Setup sidebar resizer
+        this.setupSidebarResizer();
+        
+        // Setup sidebar toggle functionality
+        this.setupSidebarToggle();
     }
     
     /**
@@ -442,11 +450,15 @@ class HWAgentApp {
     }
     
     /**
-     * Update connection status
+     * Update connection status indicator
      */
     updateConnectionStatus(connected) {
-        this.elements.statusDot.className = `status-dot ${connected ? 'online' : 'offline'}`;
-        this.elements.statusText.textContent = connected ? 'Connected' : 'Disconnected';
+        if (this.elements.connectionStatus) {
+            this.elements.connectionStatus.className = `status-dot ${connected ? 'online' : 'offline'}`;
+        }
+        if (this.elements.connectionText) {
+            this.elements.connectionText.textContent = connected ? 'Connected' : 'Disconnected';
+        }
     }
     
     /**
@@ -743,9 +755,9 @@ class HWAgentApp {
     }
 
     updateTmpPathDisplay(path) {
-        if (!this.elements.tmpPathDisplay) return;
-        this.elements.tmpPathDisplay.textContent = path ? `/${path}` : '/';
-        this.elements.tmpPathDisplay.title = path ? `/${path}` : '/';
+        if (!this.elements.tmpCurrentPath) return;
+        this.elements.tmpCurrentPath.textContent = path ? `/${path}` : '/';
+        this.elements.tmpCurrentPath.title = path ? `/${path}` : '/';
     }
 
     displayTmpFiles(files, currentPath) {
@@ -971,6 +983,213 @@ class HWAgentApp {
             });
         } catch (error) {
             console.warn('Failed to load section states:', error);
+        }
+    }
+
+    /**
+     * Setup sidebar resizer functionality
+     */
+    setupSidebarResizer() {
+        const sidebar = this.elements.sidebar;
+        const resizer = this.elements.sidebarResizer;
+        const toggleBtn = this.elements.sidebarToggle;
+        const container = this.elements.chatContainer;
+        
+        if (!sidebar || !resizer || !container) return;
+
+        let isResizing = false;
+        let startX, startWidth;
+
+        // Resizer drag functionality
+        resizer.addEventListener('mousedown', (e) => {
+            isResizing = true;
+            startX = e.clientX;
+            startWidth = parseInt(window.getComputedStyle(sidebar).width, 10);
+            document.addEventListener('mousemove', handleResize);
+            document.addEventListener('mouseup', stopResize);
+            document.body.style.cursor = 'col-resize';
+            e.preventDefault();
+        });
+
+        const handleResize = (e) => {
+            if (!isResizing) return;
+            
+            const width = startWidth + (e.clientX - startX);
+            const minWidth = 280;
+            const maxWidth = Math.min(600, window.innerWidth * 0.5);
+            
+            if (width >= minWidth && width <= maxWidth) {
+                // Update sidebar width
+                sidebar.style.width = width + 'px';
+                document.documentElement.style.setProperty('--sidebar-width', width + 'px');
+                
+                // Update dependent elements positions
+                this.updateLayoutPositions(width);
+                
+                // Save width to localStorage
+                localStorage.setItem('sidebarWidth', width);
+            }
+        };
+
+        const stopResize = () => {
+            isResizing = false;
+            document.removeEventListener('mousemove', handleResize);
+            document.removeEventListener('mouseup', stopResize);
+            document.body.style.cursor = '';
+        };
+
+        // Toggle button functionality
+        if (toggleBtn) {
+            toggleBtn.addEventListener('click', () => {
+                const isCollapsed = sidebar.classList.contains('collapsed');
+                
+                if (isCollapsed) {
+                    // Expand
+                    sidebar.classList.remove('collapsed');
+                    const savedWidth = localStorage.getItem('sidebarWidth') || '300';
+                    const width = parseInt(savedWidth);
+                    sidebar.style.width = width + 'px';
+                    document.documentElement.style.setProperty('--sidebar-width', width + 'px');
+                    this.updateLayoutPositions(width);
+                    localStorage.setItem('sidebarCollapsed', 'false');
+                } else {
+                    // Collapse
+                    sidebar.classList.add('collapsed');
+                    document.documentElement.style.setProperty('--sidebar-width', '60px');
+                    this.updateLayoutPositions(60);
+                    localStorage.setItem('sidebarCollapsed', 'true');
+                }
+            });
+        }
+
+        // Load saved state
+        const savedWidth = localStorage.getItem('sidebarWidth');
+        const isCollapsed = localStorage.getItem('sidebarCollapsed') === 'true';
+        
+        if (isCollapsed) {
+            sidebar.classList.add('collapsed');
+            document.documentElement.style.setProperty('--sidebar-width', '60px');
+            this.updateLayoutPositions(60);
+        } else if (savedWidth) {
+            const width = parseInt(savedWidth);
+            sidebar.style.width = width + 'px';
+            document.documentElement.style.setProperty('--sidebar-width', width + 'px');
+            this.updateLayoutPositions(width);
+        } else {
+            // Default width
+            document.documentElement.style.setProperty('--sidebar-width', '300px');
+            this.updateLayoutPositions(300);
+        }
+    }
+
+    /**
+     * Update layout positions for all dependent elements
+     */
+    updateLayoutPositions(sidebarWidth) {
+        const chatContainer = this.elements.chatContainer;
+        const inputContainer = document.querySelector('.chat-input-container');
+        const typingIndicator = document.querySelector('.typing-indicator');
+        
+        // Update chat container position
+        if (chatContainer) {
+            chatContainer.style.left = sidebarWidth + 'px';
+        }
+        
+        // Update input container position
+        if (inputContainer) {
+            inputContainer.style.left = sidebarWidth + 'px';
+        }
+        
+        // Update typing indicator position
+        if (typingIndicator) {
+            typingIndicator.style.left = sidebarWidth + 'px';
+        }
+    }
+
+    // Setup sidebar toggle functionality
+    setupSidebarToggle() {
+        const toggleBtn = this.elements.sidebarToggle;
+        const headerToggleBtn = this.elements.headerSidebarToggle;
+        const sidebar = this.elements.sidebar;
+        const overlay = this.elements.sidebarOverlay;
+        
+        if (!sidebar) return;
+
+        // Check if we're on mobile
+        const isMobile = () => window.innerWidth <= 768;
+
+        // Function to toggle sidebar
+        const toggleSidebar = () => {
+            if (isMobile()) {
+                // Mobile mode
+                const isOpen = sidebar.classList.contains('mobile-open');
+                if (isOpen) {
+                    sidebar.classList.remove('mobile-open');
+                    if (overlay) overlay.classList.remove('active');
+                } else {
+                    sidebar.classList.add('mobile-open');
+                    if (overlay) overlay.classList.add('active');
+                }
+            } else {
+                // Desktop mode
+                const isCollapsed = sidebar.classList.contains('collapsed');
+                
+                if (isCollapsed) {
+                    // Expand
+                    sidebar.classList.remove('collapsed');
+                    const savedWidth = localStorage.getItem('sidebarWidth') || '300';
+                    const width = parseInt(savedWidth);
+                    sidebar.style.width = width + 'px';
+                    document.documentElement.style.setProperty('--sidebar-width', width + 'px');
+                    this.updateLayoutPositions(width);
+                    localStorage.setItem('sidebarCollapsed', 'false');
+                } else {
+                    // Collapse
+                    sidebar.classList.add('collapsed');
+                    document.documentElement.style.setProperty('--sidebar-width', '60px');
+                    this.updateLayoutPositions(60);
+                    localStorage.setItem('sidebarCollapsed', 'true');
+                }
+            }
+        };
+
+        // Function to close mobile sidebar
+        const closeMobileSidebar = () => {
+            if (isMobile()) {
+                sidebar.classList.remove('mobile-open');
+                if (overlay) overlay.classList.remove('active');
+            }
+        };
+
+        // Add event listeners to both toggle buttons
+        if (toggleBtn) {
+            toggleBtn.addEventListener('click', toggleSidebar);
+        }
+        if (headerToggleBtn) {
+            headerToggleBtn.addEventListener('click', toggleSidebar);
+        }
+
+        // Close sidebar when clicking overlay
+        if (overlay) {
+            overlay.addEventListener('click', closeMobileSidebar);
+        }
+
+        // Close mobile sidebar on window resize
+        window.addEventListener('resize', () => {
+            if (!isMobile()) {
+                sidebar.classList.remove('mobile-open');
+                if (overlay) overlay.classList.remove('active');
+            }
+        });
+
+        // Load saved collapsed state (desktop only)
+        if (!isMobile()) {
+            const isCollapsed = localStorage.getItem('sidebarCollapsed') === 'true';
+            if (isCollapsed) {
+                sidebar.classList.add('collapsed');
+                document.documentElement.style.setProperty('--sidebar-width', '60px');
+                this.updateLayoutPositions(60);
+            }
         }
     }
 }
