@@ -33,6 +33,9 @@ class HWAgentApp {
         // Then setup WebSocket
         this.initializeWebSocket();
         
+        // Initialize TMP Explorer
+        this.initializeTmpExplorer();
+        
         // Load tools and hide loading
         await this.loadTools();
         this.hideLoadingOverlay();
@@ -75,7 +78,18 @@ class HWAgentApp {
             errorModal: document.getElementById('errorModal'),
             errorMessage: document.getElementById('errorMessage'),
             errorModalClose: document.getElementById('errorModalClose'),
-            errorModalOk: document.getElementById('errorModalOk')
+            errorModalOk: document.getElementById('errorModalOk'),
+
+            // TMP Directory Explorer
+            tmpExplorerContainer: document.getElementById('tmpDirectoryExplorer'),
+            tmpRefreshBtn: document.getElementById('tmpRefreshBtn'),
+            tmpPathDisplay: document.getElementById('tmpPathDisplay'),
+            tmpUpBtn: document.getElementById('tmpUpBtn'),
+            tmpFileList: document.getElementById('tmpFileList'),
+            tmpFilePreview: document.getElementById('tmpFilePreview'),
+            tmpPreviewFileName: document.getElementById('previewFileName'),
+            tmpPreviewFileContent: document.getElementById('previewFileContent'),
+            tmpClosePreviewBtn: document.getElementById('closePreviewBtn')
         };
     }
     
@@ -121,6 +135,17 @@ class HWAgentApp {
                 this.hideErrorModal();
             }
         });
+
+        // TMP Explorer buttons
+        if (this.elements.tmpRefreshBtn) {
+            this.elements.tmpRefreshBtn.addEventListener('click', () => this.loadTmpFiles(this.currentTmpPath));
+        }
+        if (this.elements.tmpUpBtn) {
+            this.elements.tmpUpBtn.addEventListener('click', () => this.navigateTmpUp());
+        }
+        if (this.elements.tmpClosePreviewBtn) {
+            this.elements.tmpClosePreviewBtn.addEventListener('click', () => this.closeTmpFilePreview());
+        }
     }
     
     /**
@@ -685,6 +710,175 @@ class HWAgentApp {
      */
     getCurrentTime() {
         return new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    }
+
+    // TMP Directory Explorer Logic
+    initializeTmpExplorer() {
+        this.currentTmpPath = '';
+        this.loadTmpFiles();
+    }
+
+    async loadTmpFiles(path = '') {
+        if (!this.elements.tmpFileList) return;
+        this.elements.tmpFileList.innerHTML = '<div class="loading-message">Loading files...</div>';
+        try {
+            const response = await fetch(`/api/fs/tmp/list?path=${encodeURIComponent(path)}`);
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || `Failed to list files: ${response.status}`);
+            }
+            const data = await response.json();
+            this.currentTmpPath = path;
+            this.updateTmpPathDisplay(path);
+            this.displayTmpFiles(data.files, path);
+            this.elements.tmpUpBtn.disabled = path === '';
+        } catch (error) {
+            console.error('Error loading TMP files:', error);
+            this.elements.tmpFileList.innerHTML = `<div class="error-message">Error: ${error.message}</div>`;
+            this.showError(`Failed to load files from TMP directory: ${error.message}`);
+        }
+    }
+
+    updateTmpPathDisplay(path) {
+        if (!this.elements.tmpPathDisplay) return;
+        this.elements.tmpPathDisplay.textContent = path ? `/${path}` : '/';
+        this.elements.tmpPathDisplay.title = path ? `/${path}` : '/';
+    }
+
+    displayTmpFiles(files, currentPath) {
+        if (!this.elements.tmpFileList) return;
+        this.elements.tmpFileList.innerHTML = ''; // Clear previous list
+
+        if (files.length === 0) {
+            this.elements.tmpFileList.innerHTML = '<div class="empty-message">Directory is empty.</div>';
+            return;
+        }
+
+        files.sort((a, b) => {
+            if (a.is_dir === b.is_dir) {
+                return a.name.localeCompare(b.name);
+            }
+            return a.is_dir ? -1 : 1; // Directories first
+        });
+
+        files.forEach(file => {
+            const item = document.createElement('div');
+            item.className = 'file-item';
+            item.title = file.name;
+
+            const icon = document.createElement('i');
+            icon.className = `fas ${file.is_dir ? 'fa-folder' : 'fa-file-alt'}`;
+
+            const nameSpan = document.createElement('span');
+            nameSpan.textContent = file.name;
+
+            item.appendChild(icon);
+            item.appendChild(nameSpan);
+
+            if (file.is_dir) {
+                item.addEventListener('click', () => this.loadTmpFiles(currentPath ? `${currentPath}/${file.name}` : file.name));
+            } else {
+                item.addEventListener('click', () => this.viewTmpFile(currentPath ? `${currentPath}/${file.name}` : file.name));
+            }
+
+            const deleteBtn = document.createElement('button');
+            deleteBtn.className = 'delete-file-btn';
+            deleteBtn.innerHTML = '<i class="fas fa-trash-alt"></i>';
+            deleteBtn.title = `Delete ${file.is_dir ? 'folder' : 'file'}`;
+            deleteBtn.addEventListener('click', (e) => {
+                e.stopPropagation(); // Prevent triggering click on parent item
+                if (confirm(`Are you sure you want to delete '${file.name}'?`)) {
+                    this.deleteTmpFile(currentPath ? `${currentPath}/${file.name}` : file.name, file.is_dir);
+                }
+            });
+
+            item.appendChild(deleteBtn);
+            this.elements.tmpFileList.appendChild(item);
+        });
+    }
+
+    async viewTmpFile(filePath) {
+        if (!this.elements.tmpFilePreview || !this.elements.tmpPreviewFileName || !this.elements.tmpPreviewFileContent) return;
+        this.elements.tmpPreviewFileName.textContent = 'Loading...';
+        this.elements.tmpPreviewFileContent.innerHTML = ''; // Clear previous content
+        this.elements.tmpFilePreview.classList.add('active');
+
+        try {
+            const response = await fetch(`/api/fs/tmp/get?path=${encodeURIComponent(filePath)}`);
+            if (!response.ok) {
+                let errorText = `Failed to get file: ${response.status}`;
+                try {
+                    const errorData = await response.json();
+                    errorText = errorData.error || errorText;
+                } catch (e) { /* Ignore if response is not JSON */ }
+                throw new Error(errorText);
+            }
+
+            const contentType = response.headers.get('content-type');
+            const fileName = filePath.split('/').pop();
+            this.elements.tmpPreviewFileName.textContent = fileName;
+
+            if (contentType && (contentType.startsWith('text/') || contentType.includes('json') || contentType.includes('javascript'))) {
+                const textContent = await response.text();
+                this.elements.tmpPreviewFileContent.textContent = textContent;
+            } else {
+                // For non-text files, provide a download/open link
+                const openLink = document.createElement('a');
+                openLink.href = `/api/fs/tmp/get?path=${encodeURIComponent(filePath)}`;
+                openLink.textContent = `Open '${fileName}' in new tab`;
+                openLink.target = '_blank';
+                openLink.style.display = 'block';
+                openLink.style.padding = '1rem';
+                openLink.style.textAlign = 'center';
+                this.elements.tmpPreviewFileContent.appendChild(openLink);
+                if (contentType && contentType.startsWith('image/')){
+                    const imgPreview = document.createElement('img');
+                    imgPreview.src = `/api/fs/tmp/get?path=${encodeURIComponent(filePath)}`;
+                    imgPreview.style.maxWidth = '100%';
+                    imgPreview.style.maxHeight = '150px';
+                    imgPreview.style.display = 'block';
+                    imgPreview.style.margin = '0.5rem auto';
+                    this.elements.tmpPreviewFileContent.appendChild(imgPreview);
+                }
+            }
+        } catch (error) {
+            console.error('Error viewing TMP file:', error);
+            this.elements.tmpPreviewFileName.textContent = 'Error';
+            this.elements.tmpPreviewFileContent.textContent = error.message;
+            this.showError(`Failed to view file: ${error.message}`);
+        }
+    }
+
+    async deleteTmpFile(filePath, isDir) {
+        try {
+            const response = await fetch(`/api/fs/tmp/delete?path=${encodeURIComponent(filePath)}`, {
+                method: 'DELETE'
+            });
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || `Failed to delete: ${response.status}`);
+            }
+            const data = await response.json();
+            this.showNotification(data.message || 'Successfully deleted.', 'success');
+            this.loadTmpFiles(this.currentTmpPath); // Refresh the list
+            this.closeTmpFilePreview(); // Close preview if deleted file was open
+        } catch (error) {
+            console.error('Error deleting TMP file/folder:', error);
+            this.showError(`Failed to delete: ${error.message}`);
+        }
+    }
+
+    navigateTmpUp() {
+        if (!this.currentTmpPath) return;
+        const parentPath = this.currentTmpPath.substring(0, this.currentTmpPath.lastIndexOf('/'));
+        this.loadTmpFiles(parentPath);
+    }
+
+    closeTmpFilePreview() {
+        if (!this.elements.tmpFilePreview) return;
+        this.elements.tmpFilePreview.classList.remove('active');
+        this.elements.tmpPreviewFileName.textContent = '';
+        this.elements.tmpPreviewFileContent.textContent = '';
     }
 }
 

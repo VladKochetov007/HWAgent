@@ -501,6 +501,118 @@ def get_tools():
         return jsonify({'error': str(e)}), 500
 
 
+# Filesystem API for tmp directory
+TMP_DIR_PATH = Path(__file__).parent / 'tmp'
+TMP_DIR_PATH.mkdir(exist_ok=True) # Ensure tmp directory exists
+
+@app.route('/api/fs/tmp/list', methods=['GET'])
+def list_tmp_directory():
+    """List files and directories in hwagent/tmp/."""
+    path_param = request.args.get('path', '.') # Relative path within tmp
+    logger.info(f"Listing tmp directory for path: '{path_param}'")
+    try:
+        # Security: Resolve to absolute path and ensure it's within TMP_DIR_PATH
+        requested_path = TMP_DIR_PATH.joinpath(path_param).resolve()
+        logger.debug(f"Resolved requested path: {requested_path}")
+
+        if not str(requested_path).startswith(str(TMP_DIR_PATH.resolve())):
+            logger.warning(f"Access denied for path: {requested_path}. Outside allowed: {TMP_DIR_PATH.resolve()}")
+            return jsonify({'error': 'Access denied: Path is outside the allowed directory.'}), 403
+        if not requested_path.exists():
+            logger.warning(f"Path not found: {requested_path}")
+            return jsonify({'error': 'Path not found'}), 404
+
+        items = []
+        for item in requested_path.iterdir():
+            items.append({
+                'name': item.name,
+                'path': str(item.relative_to(TMP_DIR_PATH)), # Ensure path is relative to TMP_DIR_PATH for client
+                'is_dir': item.is_dir(),
+                'size': item.stat().st_size if item.is_file() else None,
+                'modified': datetime.fromtimestamp(item.stat().st_mtime).isoformat()
+            })
+        logger.info(f"Found {len(items)} items in '{path_param}'")
+        return jsonify({'files': items}) # Return as an object with 'files' key
+    except Exception as e:
+        logger.error(f"Error listing tmp directory for path '{path_param}': {e}", exc_info=True)
+        return jsonify({'error': f'Failed to list directory: {str(e)}'}), 500
+
+@app.route('/api/fs/tmp/get', methods=['GET'])
+def get_tmp_file():
+    """Get content of a file from hwagent/tmp/."""
+    file_path_str = request.args.get('path')
+    logger.info(f"Request to get tmp file: '{file_path_str}'")
+    if not file_path_str:
+        logger.warning("File path not provided for /api/fs/tmp/get")
+        return jsonify({'error': 'File path is required'}), 400
+
+    try:
+        # Security: Resolve and check path
+        file_path = TMP_DIR_PATH.joinpath(file_path_str).resolve()
+        logger.debug(f"Resolved file path for get: {file_path}")
+
+        if not str(file_path).startswith(str(TMP_DIR_PATH.resolve())):
+            logger.warning(f"Access denied for get file: {file_path}. Outside allowed: {TMP_DIR_PATH.resolve()}")
+            return jsonify({'error': 'Access denied: Path is outside the allowed directory.'}), 403
+        if not file_path.is_file():
+            logger.warning(f"Path is not a file or does not exist for get: {file_path}")
+            return jsonify({'error': 'Path is not a file or does not exist'}), 404
+        
+        MAX_FILE_SIZE = 5 * 1024 * 1024 
+        if file_path.stat().st_size > MAX_FILE_SIZE:
+            logger.warning(f"File too large: {file_path}, size: {file_path.stat().st_size}")
+            return jsonify({'error': f'File is too large (max {MAX_FILE_SIZE // (1024*1024)}MB)'}), 400
+
+        logger.info(f"Sending file: {file_path_str}")
+        # Send file for inline display if possible, otherwise as attachment
+        return send_from_directory(TMP_DIR_PATH, file_path_str, as_attachment=False)
+
+    except Exception as e:
+        logger.error(f"Error getting tmp file '{file_path_str}': {e}", exc_info=True)
+        return jsonify({'error': f'Failed to get file: {str(e)}'}), 500
+
+@app.route('/api/fs/tmp/delete', methods=['DELETE'])
+def delete_tmp_item():
+    """Delete a file or directory from hwagent/tmp/."""
+    item_path_str = request.args.get('path')
+    logger.info(f"Request to delete tmp item: '{item_path_str}'")
+    if not item_path_str:
+        logger.warning("Item path not provided for /api/fs/tmp/delete")
+        return jsonify({'error': 'Item path is required'}), 400
+    try:
+        item_path = TMP_DIR_PATH.joinpath(item_path_str).resolve()
+        logger.debug(f"Resolved item path for delete: {item_path}")
+
+        if not str(item_path).startswith(str(TMP_DIR_PATH.resolve())):
+            logger.warning(f"Access denied for delete item: {item_path}. Outside allowed: {TMP_DIR_PATH.resolve()}")
+            return jsonify({'error': 'Access denied: Path is outside the allowed directory.'}), 403
+        if item_path == TMP_DIR_PATH.resolve(): 
+             logger.warning("Attempt to delete root tmp directory blocked.")
+             return jsonify({'error': 'Cannot delete the root tmp directory.'}), 400
+        if not item_path.exists():
+            logger.warning(f"Item not found for delete: {item_path}")
+            return jsonify({'error': 'Item not found'}), 404
+        
+        if item_path.is_file():
+            item_path.unlink()
+            logger.info(f"Deleted file: {item_path}")
+            return jsonify({'message': f'File {item_path_str} deleted successfully'})
+        elif item_path.is_dir():
+            if not any(item_path.iterdir()): 
+                item_path.rmdir()
+                logger.info(f"Deleted empty directory: {item_path}")
+                return jsonify({'message': f'Directory {item_path_str} deleted successfully'})
+            else:
+                logger.warning(f"Attempt to delete non-empty directory: {item_path}")
+                return jsonify({'error': 'Directory is not empty. Only empty directories can be deleted.'}), 400
+        else:
+            logger.warning(f"Path is not a file or directory for delete: {item_path}")
+            return jsonify({'error': 'Path is not a file or directory'}), 400
+
+    except Exception as e:
+        logger.error(f"Error deleting tmp item '{item_path_str}': {e}", exc_info=True)
+        return jsonify({'error': f'Failed to delete item: {str(e)}'}), 500
+
 # WebSocket Events
 @socketio.on('connect')
 def handle_connect():

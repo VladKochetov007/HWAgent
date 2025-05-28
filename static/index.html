@@ -47,9 +47,40 @@
                     </div>
                 </div>
 
-                <div class="sidebar-section">
+                <div class="sidebar-section" id="tmpDirectoryExplorer">
+                    <h3><i class="fas fa-folder-open"></i> TMP Directory</h3>
+                    <div class="file-explorer-toolbar">
+                        <button id="tmpRefreshBtn" title="Refresh"><i class="fas fa-sync-alt"></i></button>
+                        <button id="tmpUpBtn" title="Parent Directory" disabled><i class="fas fa-arrow-up"></i></button>
+                        <span id="tmpCurrentPath" class="current-path">/</span>
+                    </div>
+                    <div id="tmpFileList" class="file-list">
+                        <!-- File items will be dynamically inserted here -->
+                        <!-- Example: 
+                        <div class="file-item" data-path="filename.txt" data-is-dir="false">
+                            <i class="fas fa-file-alt"></i> 
+                            <span>filename.txt</span>
+                            <button class="delete-file-btn" title="Delete file"><i class="fas fa-trash-alt"></i></button>
+                        </div>
+                        <div class="file-item" data-path="foldername" data-is-dir="true">
+                            <i class="fas fa-folder"></i> 
+                            <span>foldername</span>
+                            <button class="delete-file-btn" title="Delete folder"><i class="fas fa-trash-alt"></i></button>
+                        </div> 
+                        -->
+                    </div>
+                    <div id="tmpFilePreview" class="file-preview">
+                        <div class="file-preview-header">
+                            <span id="previewFileName">Select a file to preview</span>
+                            <button id="closePreviewBtn" title="Close Preview"><i class="fas fa-times"></i></button>
+                        </div>
+                        <pre id="previewFileContent"></pre>
+                    </div>
+                </div>
+
+                <div class="sidebar-section tools-section-collapsible">
                     <h3><i class="fas fa-tools"></i> Tools Available</h3>
-                    <div id="toolsList" class="tools-list">
+                    <div id="toolsList" class="tools-list tools-list-collapsible">
                         <div class="loading-tools">Loading tools...</div>
                     </div>
                 </div>
