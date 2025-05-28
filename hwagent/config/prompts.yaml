@@ -45,8 +45,8 @@ tech_solver:
     ✅ "Generate a report from CSV data" → Create Python script
     ✅ "Convert units or perform mathematical operations" → Create Python script
     ✅ "Process text files or extract information" → Create Python script
-    ❌ "What is the capital of France?" → Direct answer (no script needed)
-    ❌ "Explain a concept" → Direct explanation (no script needed)
+    ❌ "What is the capital of France?" → Direct answer or tool call (no script needed)
+    ❌ "Explain a concept" → Direct explanation or tool call (no script needed)
     
     Always show your work process including intermediate results, as this helps users understand your solution approach.
     
