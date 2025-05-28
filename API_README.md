@@ -1,46 +1,46 @@
 # HWAgent REST API Documentation
 
-Новый REST API для HWAgent с полной поддержкой стриминга через WebSocket и HTTP endpoints.
+New REST API for HWAgent with full streaming support via WebSocket and HTTP endpoints.
 
-## Особенности
+## Features
 
-✨ **Полная поддержка стриминга** - WebSocket и Server-Sent Events
-🔄 **Управление сессиями** - Изолированные контексты для каждого пользователя  
-🛠️ **Все инструменты** - Полная поддержка всех инструментов HWAgent
-🎨 **Современный UI** - Красивый и отзывчивый веб-интерфейс
-📡 **REST API** - Полноценный REST API для интеграции
-🌐 **CORS поддержка** - Готов для использования с внешними фронтендами
+✨ **Full Streaming Support** - WebSocket and Server-Sent Events
+🔄 **Session Management** - Isolated contexts for each user
+🛠️ **All Tools** - Full support for all HWAgent tools
+🎨 **Modern UI** - Beautiful and responsive web interface
+📡 **REST API** - Full-fledged REST API for integration
+🌐 **CORS Support** - Ready for use with external frontends
 
-## Быстрый старт
+## Quick Start
 
-### 1. Установите зависимости
+### 1. Install Dependencies
 ```bash
 pip install -r requirements.txt
 ```
 
-### 2. Настройте переменные окружения
+### 2. Configure Environment Variables
 ```bash
 export OPENROUTER_API_KEY="your_api_key_here"
 ```
 
-### 3. Запустите сервер
+### 3. Run the Server
 ```bash
 python run_api_server.py
 ```
 
-### 4. Откройте веб-интерфейс
-Перейдите на http://127.0.0.1:5000
+### 4. Open Web Interface
+Navigate to http://127.0.0.1:5000
 
 ## API Endpoints
 
-### Управление сессиями
+### Session Management
 
-#### Создание сессии
+#### Create Session
 ```http
 POST /api/sessions
 ```
 
-**Ответ:**
+**Response:**
 ```json
 {
   "session_id": "uuid-string",
@@ -49,74 +49,74 @@ POST /api/sessions
 }
 ```
 
-#### Получение информации о сессии
+#### Get Session Information
 ```http
 GET /api/sessions/{session_id}
 ```
 
-#### Удаление сессии
+#### Delete Session
 ```http
 DELETE /api/sessions/{session_id}
 ```
 
-### Отправка сообщений
+### Sending Messages
 
-#### Стандартный режим (без стриминга)
+#### Standard Mode (Non-Streaming)
 ```http
 POST /api/sessions/{session_id}/messages
 Content-Type: application/json
 
 {
-  "message": "Ваше сообщение"
+  "message": "Your message"
 }
 ```
 
-**Ответ:**
+**Response:**
 ```json
 {
-  "response": "Ответ агента",
+  "response": "Agent's response",
   "timestamp": "2024-01-01T12:00:00Z",
   "session_id": "uuid-string"
 }
 ```
 
-#### Потоковый режим (Server-Sent Events)
+#### Streaming Mode (Server-Sent Events)
 ```http
 POST /api/sessions/{session_id}/stream
 Content-Type: application/json
 
 {
-  "message": "Ваше сообщение"
+  "message": "Your message"
 }
 ```
 
-**Потоковый ответ:**
+**Streamed Response:**
 ```
 data: {"type": "start", "message": "Processing..."}
 
-data: {"type": "complete", "response": "Полный ответ"}
+data: {"type": "complete", "response": "Full response"}
 ```
 
-### Управление контекстом
+### Context Management
 
-#### Получение контекста
+#### Get Context
 ```http
 GET /api/sessions/{session_id}/context
 ```
 
-#### Очистка контекста
+#### Clear Context
 ```http
 DELETE /api/sessions/{session_id}/context
 ```
 
-### Информация о системе
+### System Information
 
 #### Health Check
 ```http
 GET /api/health
 ```
 
-**Ответ:**
+**Response:**
 ```json
 {
   "status": "healthy",
@@ -126,19 +126,19 @@ GET /api/health
 }
 ```
 
-#### Список доступных инструментов
+#### List Available Tools
 ```http
 GET /api/tools
 ```
 
-**Ответ:**
+**Response:**
 ```json
 {
   "tools": [
     {
       "name": "create_file",
       "description": "Create files with content",
-      "parameters": {...}
+      "parameters": {}
     }
   ],
   "count": 6
@@ -147,93 +147,93 @@ GET /api/tools
 
 ## WebSocket API
 
-### Подключение
+### Connection
 ```javascript
 const socket = io('http://127.0.0.1:5000');
 ```
 
-### События
+### Events
 
-#### Отправка сообщения
+#### Sending a Message
 ```javascript
 socket.emit('send_message', {
-  message: 'Ваше сообщение'
+  message: 'Your message'
 });
 ```
 
-#### Получение ответов
+#### Receiving Responses
 ```javascript
-// Начало обработки
+// Processing started
 socket.on('stream_start', (data) => {
-  console.log('Обработка началась:', data.message);
+  console.log('Processing started:', data.message);
 });
 
-// Части ответа (стриминг)
+// Response parts (streaming)
 socket.on('stream_chunk', (data) => {
   if (data.type === 'content') {
-    console.log('Новая часть:', data.content);
+    console.log('New part:', data.content);
   }
 });
 
-// Завершение обработки
+// Processing completed
 socket.on('stream_complete', (data) => {
-  console.log('Полный ответ:', data.response);
+  console.log('Full response:', data.response);
 });
 
-// Ошибки
+// Errors
 socket.on('error', (data) => {
-  console.error('Ошибка:', data.message);
+  console.error('Error:', data.message);
 });
 ```
 
-#### Управление контекстом
+#### Context Management
 ```javascript
-// Очистка контекста
+// Clear context
 socket.emit('clear_context');
 
-// Получение контекста
+// Get context
 socket.emit('get_context');
 
 socket.on('context_cleared', (data) => {
-  console.log('Контекст очищен');
+  console.log('Context cleared');
 });
 
 socket.on('context_summary', (data) => {
-  console.log('Контекст:', data.summary);
+  console.log('Context:', data.summary);
 });
 ```
 
-## Веб-интерфейс
+## Web Interface
 
-Современный веб-интерфейс доступен по адресу: http://127.0.0.1:5000
+A modern web interface is available at: http://127.0.0.1:5000
 
-### Возможности интерфейса:
+### Interface Features:
 
-- 💬 **Чат с агентом** - Стриминговый и обычный режимы
-- ⚙️ **Настройки** - Переключение режимов стриминга
-- 🛠️ **Инструменты** - Просмотр доступных инструментов
-- 📊 **Информация о сессии** - ID сессии, количество сообщений
-- 🗑️ **Управление контекстом** - Очистка истории
-- 💾 **Экспорт чата** - Сохранение истории в JSON
-- 📱 **Адаптивный дизайн** - Работает на мобильных устройствах
+- 💬 **Chat with Agent** - Streaming and standard modes
+- ⚙️ **Settings** - Switch streaming modes
+- 🛠️ **Tools** - View available tools
+- 📊 **Session Information** - Session ID, message count
+- 🗑️ **Context Management** - Clear history
+- 💾 **Export Chat** - Save history to JSON
+- 📱 **Responsive Design** - Works on mobile devices
 
-### Горячие клавиши:
-- `Ctrl + Enter` - Отправить сообщение
-- `Shift + Enter` - Новая строка в тексте
+### Hotkeys:
+- `Ctrl + Enter` - Send message
+- `Shift + Enter` - New line in text
 
-## Конфигурация
+## Configuration
 
-### Переменные окружения
+### Environment Variables
 
-| Переменная | Описание | По умолчанию |
-|------------|----------|--------------|
-| `OPENROUTER_API_KEY` | API ключ OpenRouter | *Обязательно* |
-| `HOST` | Хост сервера | `127.0.0.1` |
-| `PORT` | Порт сервера | `5000` |
-| `DEBUG` | Режим отладки | `False` |
-| `SECRET_KEY` | Секретный ключ Flask | `hwagent-secret-key-2024` |
+| Variable           | Description             | Default                       |
+|--------------------|-------------------------|-------------------------------|
+| `OPENROUTER_API_KEY` | OpenRouter API key      | *Required*                    |
+| `HOST`               | Server host             | `127.0.0.1`                   |
+| `PORT`               | Server port             | `5000`                        |
+| `DEBUG`              | Debug mode              | `False`                       |
+| `SECRET_KEY`         | Flask secret key        | `hwagent-secret-key-2024`     |
 
-### Пример .env файла
+### Example .env file
 ```bash
 OPENROUTER_API_KEY=your_api_key_here
 HOST=0.0.0.0
@@ -242,9 +242,9 @@ DEBUG=true
 SECRET_KEY=your_secret_key_here
 ```
 
-## Архитектура
+## Architecture
 
-### Компоненты системы:
+### System Components:
 
 1. **API Server** (`hwagent/api_server.py`)
    - Flask + Flask-SocketIO

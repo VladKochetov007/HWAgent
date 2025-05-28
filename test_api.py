@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Простой тест для проверки работы HWAgent REST API.
-Проверяет основные endpoint'ы и функциональность.
+Simple test to check the HWAgent REST API.
+Checks main endpoints and functionality.
 """
 
 import requests
@@ -12,15 +12,15 @@ from typing import Dict, Any
 
 
 class APITester:
-    """Простой тестер для HWAgent API."""
+    """Simple tester for HWAgent API."""
     
     def __init__(self, base_url: str = "http://127.0.0.1:5000"):
         self.base_url = base_url
         self.session_id: str | None = None
         
     def test_health(self) -> bool:
-        """Проверка health endpoint."""
-        print("🔍 Тестирование health endpoint...")
+        """Test the health endpoint."""
+        print("🔍 Testing health endpoint...")
         try:
             response = requests.get(f"{self.base_url}/api/health", timeout=5)
             if response.status_code == 200:
@@ -35,29 +35,29 @@ class APITester:
             return False
     
     def test_create_session(self) -> bool:
-        """Создание новой сессии."""
-        print("🔍 Создание новой сессии...")
+        """Create a new session."""
+        print("🔍 Creating a new session...")
         try:
             response = requests.post(f"{self.base_url}/api/sessions", timeout=10)
             if response.status_code == 201:
                 data = response.json()
                 self.session_id = data["session_id"]
-                print(f"✅ Сессия создана: {self.session_id}")
+                print(f"✅ Session created: {self.session_id}")
                 return True
             else:
-                print(f"❌ Ошибка создания сессии: {response.status_code}")
+                print(f"❌ Error creating session: {response.status_code}")
                 return False
         except Exception as e:
-            print(f"❌ Ошибка создания сессии: {e}")
+            print(f"❌ Error creating session: {e}")
             return False
     
     def test_session_info(self) -> bool:
-        """Получение информации о сессии."""
+        """Get session information."""
         if not self.session_id:
-            print("❌ Нет активной сессии для тестирования")
+            print("❌ No active session to test")
             return False
             
-        print("🔍 Получение информации о сессии...")
+        print("🔍 Getting session information...")
         try:
             response = requests.get(
                 f"{self.base_url}/api/sessions/{self.session_id}",
@@ -65,25 +65,25 @@ class APITester:
             )
             if response.status_code == 200:
                 data = response.json()
-                print(f"✅ Информация о сессии получена: {data}")
+                print(f"✅ Session information retrieved: {data}")
                 return True
             else:
-                print(f"❌ Ошибка получения информации: {response.status_code}")
+                print(f"❌ Error retrieving information: {response.status_code}")
                 return False
         except Exception as e:
-            print(f"❌ Ошибка получения информации: {e}")
+            print(f"❌ Error retrieving information: {e}")
             return False
     
     def test_send_message(self) -> bool:
-        """Отправка сообщения."""
+        """Send a message."""
         if not self.session_id:
-            print("❌ Нет активной сессии для отправки сообщения")
+            print("❌ No active session to send a message")
             return False
             
-        print("🔍 Отправка тестового сообщения...")
+        print("🔍 Sending a test message...")
         try:
             message_data = {
-                "message": "Привет! Можешь посчитать 2 + 2?"
+                "message": "Hello! Can you calculate 2 + 2?"
             }
             response = requests.post(
                 f"{self.base_url}/api/sessions/{self.session_id}/messages",
@@ -92,104 +92,104 @@ class APITester:
             )
             if response.status_code == 200:
                 data = response.json()
-                print(f"✅ Ответ получен: {data['response'][:100]}...")
+                print(f"✅ Response received: {data['response'][:100]}...")
                 return True
             else:
-                print(f"❌ Ошибка отправки сообщения: {response.status_code}")
+                print(f"❌ Error sending message: {response.status_code}")
                 if response.text:
-                    print(f"Детали: {response.text}")
+                    print(f"Details: {response.text}")
                 return False
         except Exception as e:
-            print(f"❌ Ошибка отправки сообщения: {e}")
+            print(f"❌ Error sending message: {e}")
             return False
     
     def test_tools_endpoint(self) -> bool:
-        """Проверка endpoint инструментов."""
-        print("🔍 Получение списка инструментов...")
+        """Test the tools endpoint."""
+        print("🔍 Getting list of tools...")
         try:
             response = requests.get(f"{self.base_url}/api/tools", timeout=5)
             if response.status_code == 200:
                 data = response.json()
-                print(f"✅ Найдено инструментов: {data['count']}")
-                for tool in data['tools'][:3]:  # Показываем первые 3
+                print(f"✅ Tools found: {data['count']}")
+                for tool in data['tools'][:3]:  # Show first 3
                     print(f"  - {tool['name']}: {tool['description']}")
                 return True
             else:
-                print(f"❌ Ошибка получения инструментов: {response.status_code}")
+                print(f"❌ Error getting tools: {response.status_code}")
                 return False
         except Exception as e:
-            print(f"❌ Ошибка получения инструментов: {e}")
+            print(f"❌ Error getting tools: {e}")
             return False
     
     def test_context_management(self) -> bool:
-        """Тестирование управления контекстом."""
+        """Test context management."""
         if not self.session_id:
-            print("❌ Нет активной сессии для управления контекстом")
+            print("❌ No active session for context management")
             return False
             
-        print("🔍 Тестирование управления контекстом...")
+        print("🔍 Testing context management...")
         try:
-            # Получение контекста
+            # Get context
             response = requests.get(
                 f"{self.base_url}/api/sessions/{self.session_id}/context",
                 timeout=5
             )
             if response.status_code == 200:
-                print("✅ Контекст получен")
+                print("✅ Context retrieved")
             
-            # Очистка контекста
+            # Clear context
             response = requests.delete(
                 f"{self.base_url}/api/sessions/{self.session_id}/context",
                 timeout=5
             )
             if response.status_code == 200:
-                print("✅ Контекст очищен")
+                print("✅ Context cleared")
                 return True
             else:
-                print(f"❌ Ошибка очистки контекста: {response.status_code}")
+                print(f"❌ Error clearing context: {response.status_code}")
                 return False
                 
         except Exception as e:
-            print(f"❌ Ошибка управления контекстом: {e}")
+            print(f"❌ Error in context management: {e}")
             return False
     
     def test_delete_session(self) -> bool:
-        """Удаление сессии."""
+        """Delete a session."""
         if not self.session_id:
-            print("❌ Нет активной сессии для удаления")
+            print("❌ No active session to delete")
             return False
             
-        print("🔍 Удаление сессии...")
+        print("🔍 Deleting session...")
         try:
             response = requests.delete(
                 f"{self.base_url}/api/sessions/{self.session_id}",
                 timeout=5
             )
             if response.status_code == 200:
-                print("✅ Сессия удалена")
+                print("✅ Session deleted")
                 self.session_id = None
                 return True
             else:
-                print(f"❌ Ошибка удаления сессии: {response.status_code}")
+                print(f"❌ Error deleting session: {response.status_code}")
                 return False
         except Exception as e:
-            print(f"❌ Ошибка удаления сессии: {e}")
+            print(f"❌ Error deleting session: {e}")
             return False
     
     def run_all_tests(self) -> None:
-        """Запуск всех тестов."""
-        print("🚀 Запуск тестов HWAgent REST API\n")
-        print(f"Тестируем сервер: {self.base_url}")
+        """Run all tests."""
+        print("🚀 Starting HWAgent REST API tests\n")
+        print(f"Testing server: {self.base_url}")
         print("=" * 50)
         
         tests = [
             ("Health Check", self.test_health),
-            ("Создание сессии", self.test_create_session),
-            ("Информация о сессии", self.test_session_info),
-            ("Список инструментов", self.test_tools_endpoint),
-            ("Отправка сообщения", self.test_send_message),
-            ("Управление контекстом", self.test_context_management),
-            ("Удаление сессии", self.test_delete_session),
+            ("Create Session", self.test_create_session),
+            ("Session Information", self.test_session_info),
+            ("List Tools", self.test_tools_endpoint),
+            ("Send Message", self.test_send_message),
+            ("Context Management", self.test_context_management),
+            ("Delete Session", self.test_delete_session),
         ]
         
         passed = 0
@@ -200,33 +200,32 @@ class APITester:
             try:
                 if test_func():
                     passed += 1
-                time.sleep(1)  # Небольшая пауза между тестами
+                time.sleep(1)  # Short pause between tests
             except KeyboardInterrupt:
-                print("\n❌ Тестирование прервано пользователем")
+                print("\n❌ Testing interrupted by user")
                 break
             except Exception as e:
-                print(f"❌ Неожиданная ошибка в тесте '{test_name}': {e}")
+                print(f"❌ Unexpected error in test '{test_name}': {e}")
         
         print("\n" + "=" * 50)
-        print(f"📊 Результаты: {passed}/{total} тестов прошли успешно")
+        print(f"📊 Results: {passed}/{total} tests passed successfully")
         
         if passed == total:
-            print("🎉 Все тесты прошли успешно!")
+            print("🎉 All tests passed successfully!")
         elif passed > total // 2:
-            print("⚠️ Большинство тестов прошли, но есть проблемы")
+            print("⚠️ Most tests passed, but there are issues")
         else:
-            print("❌ Много тестов не прошли, проверьте сервер")
-
+            print("❌ Many tests failed, check the server")
 
 def main():
-    """Главная функция."""
+    """Main function."""
     if len(sys.argv) > 1:
         base_url = sys.argv[1]
     else:
         base_url = "http://127.0.0.1:5000"
     
     print(f"HWAgent API Tester")
-    print(f"Сервер: {base_url}")
+    print(f"Server: {base_url}")
     
     tester = APITester(base_url)
     tester.run_all_tests()

@@ -41,20 +41,26 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-app = Flask(__name__)
+# Create Flask app with static folder configuration
+app = Flask(__name__, static_folder='../static', static_url_path='/static')
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'hwagent-secret-key-2024')
 CORS(app, origins="*")
+
+# Configure SocketIO
 socketio = SocketIO(
     app, 
     cors_allowed_origins="*", 
     async_mode='threading',
-    logger=True,
-    engineio_logger=True
+    logger=False,  # Reduced logging noise
+    engineio_logger=False
 )
 
 # Global storage for agents and sessions
 agents: Dict[str, 'StreamingReActAgent'] = {}
 active_sessions: Dict[str, Dict[str, Any]] = {}
+
+# Global agent template for initialization
+global_agent_template = None
 
 
 class StreamingReActAgent(ReActAgent):
@@ -126,8 +132,13 @@ class StreamingReActAgent(ReActAgent):
             return "Request timed out"
 
 
-def initialize_agent() -> Optional[StreamingReActAgent]:
-    """Initialize agent with proper error handling."""
+def initialize_global_agent() -> Optional[StreamingReActAgent]:
+    """Initialize global agent template."""
+    global global_agent_template
+    
+    if global_agent_template is not None:
+        return global_agent_template
+    
     try:
         # Load configurations
         api_config = load_yaml_config("hwagent/config/api.yaml")
@@ -165,40 +176,91 @@ def initialize_agent() -> Optional[StreamingReActAgent]:
             enable_streaming=True
         )
         
-        logger.info(f"Agent initialized successfully with {tool_manager.get_tool_count()} tools")
+        # Store individual components on the template for easier access
+        # when creating session agents
+        global_agent_template = agent
+        global_agent_template._client_instance = client
+        global_agent_template._model_name_instance = model_name
+        global_agent_template._tool_manager_instance = tool_manager
+        global_agent_template._base_system_prompt_instance = base_system_prompt
+        global_agent_template._agent_prompts_instance = agent_react_prompts
+        
+        logger.info(f"Global agent initialized successfully with {tool_manager.get_tool_count()} tools")
         return agent
         
     except Exception as e:
-        logger.error(f"Failed to initialize agent: {e}")
+        logger.error(f"Failed to initialize global agent: {e}")
+        return None
+
+
+def create_session_agent(session_id: str) -> Optional[StreamingReActAgent]:
+    """Create a new agent instance for a session."""
+    try:
+        if global_agent_template is None:
+            base_agent = initialize_global_agent()
+            if not base_agent:
+                return None
+        
+        # Create new agent instance using stored components from the template
+        agent = StreamingReActAgent(
+            client=global_agent_template._client_instance,
+            model_name=global_agent_template._model_name_instance,
+            tool_manager=global_agent_template._tool_manager_instance,
+            base_system_prompt=global_agent_template._base_system_prompt_instance,
+            agent_prompts=global_agent_template._agent_prompts_instance,
+            enable_streaming=True
+        )
+        
+        agent.set_session_id(session_id)
+        return agent
+        
+    except Exception as e:
+        logger.error(f"Failed to create session agent: {e}")
         return None
 
 
 def get_or_create_agent(session_id: str) -> Optional[StreamingReActAgent]:
     """Get existing agent or create new one for session."""
     if session_id not in agents:
-        agent = initialize_agent()
+        agent = create_session_agent(session_id)
         if agent:
-            agent.set_session_id(session_id)
             agents[session_id] = agent
         else:
             return None
     return agents[session_id]
 
 
-# REST API Endpoints
-
+# Static files handling
 @app.route('/')
 def serve_index():
     """Serve the main HTML page."""
-    return send_from_directory('static', 'index.html')
+    try:
+        static_dir = Path(__file__).parent.parent / 'static'
+        if not static_dir.exists():
+            return jsonify({'error': 'Static directory not found'}), 404
+        
+        index_file = static_dir / 'index.html'
+        if not index_file.exists():
+            return jsonify({'error': 'index.html not found'}), 404
+            
+        return send_from_directory(str(static_dir), 'index.html')
+    except Exception as e:
+        logger.error(f"Error serving index: {e}")
+        return jsonify({'error': 'Failed to serve index page'}), 500
 
 
 @app.route('/static/<path:filename>')
 def serve_static(filename):
     """Serve static files."""
-    return send_from_directory('static', filename)
+    try:
+        static_dir = Path(__file__).parent.parent / 'static'
+        return send_from_directory(str(static_dir), filename)
+    except Exception as e:
+        logger.error(f"Error serving static file {filename}: {e}")
+        return jsonify({'error': 'File not found'}), 404
 
 
+# API Endpoints
 @app.route('/api/health', methods=['GET'])
 def health_check():
     """Health check endpoint."""
@@ -206,30 +268,39 @@ def health_check():
         'status': 'healthy',
         'timestamp': datetime.utcnow().isoformat(),
         'version': '1.0.0',
-        'active_sessions': len(active_sessions)
+        'active_sessions': len(active_sessions),
+        'agents_loaded': len(agents)
     })
 
 
 @app.route('/api/sessions', methods=['POST'])
 def create_session():
     """Create a new chat session."""
-    session_id = str(uuid.uuid4())
-    
-    agent = get_or_create_agent(session_id)
-    if not agent:
-        return jsonify({'error': 'Failed to initialize agent'}), 500
-    
-    active_sessions[session_id] = {
-        'created_at': datetime.utcnow().isoformat(),
-        'last_activity': datetime.utcnow().isoformat(),
-        'message_count': 0
-    }
-    
-    return jsonify({
-        'session_id': session_id,
-        'created_at': active_sessions[session_id]['created_at'],
-        'tools_available': agent.tool_manager.get_tool_count()
-    })
+    try:
+        session_id = str(uuid.uuid4())
+        
+        # Initialize global agent if not done
+        if global_agent_template is None:
+            init_agent = initialize_global_agent()
+            if not init_agent:
+                return jsonify({'error': 'Failed to initialize agent system'}), 500
+        
+        # Create session record
+        active_sessions[session_id] = {
+            'created_at': datetime.utcnow().isoformat(),
+            'last_activity': datetime.utcnow().isoformat(),
+            'message_count': 0
+        }
+        
+        return jsonify({
+            'session_id': session_id,
+            'created_at': active_sessions[session_id]['created_at'],
+            'tools_available': global_agent_template.tool_manager.get_tool_count() if global_agent_template else 0
+        }), 201
+        
+    except Exception as e:
+        logger.error(f"Error creating session: {e}")
+        return jsonify({'error': 'Failed to create session'}), 500
 
 
 @app.route('/api/sessions/<session_id>', methods=['GET'])
@@ -240,8 +311,11 @@ def get_session_info(session_id: str):
     
     session_info = active_sessions[session_id].copy()
     agent = agents.get(session_id)
-    if agent:
-        session_info['context_summary'] = agent.get_context_summary()
+    if agent and hasattr(agent, 'get_context_summary'):
+        try:
+            session_info['context_summary'] = agent.get_context_summary()
+        except:
+            session_info['context_summary'] = "No context available"
     
     return jsonify(session_info)
 
@@ -348,10 +422,14 @@ def get_context(session_id: str):
     if not agent:
         return jsonify({'error': 'Agent not found'}), 404
     
-    return jsonify({
-        'context_summary': agent.get_context_summary(),
-        'session_id': session_id
-    })
+    try:
+        context_summary = agent.get_context_summary() if hasattr(agent, 'get_context_summary') else "No context available"
+        return jsonify({
+            'context_summary': context_summary,
+            'session_id': session_id
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 
 @app.route('/api/sessions/<session_id>/context', methods=['DELETE'])
@@ -364,37 +442,66 @@ def clear_context(session_id: str):
     if not agent:
         return jsonify({'error': 'Agent not found'}), 404
     
-    agent.clear_context()
-    return jsonify({'message': 'Context cleared'})
+    try:
+        if hasattr(agent, 'clear_context'):
+            agent.clear_context()
+        return jsonify({'message': 'Context cleared'})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 
 @app.route('/api/tools', methods=['GET'])
 def get_tools():
     """Get available tools information."""
     try:
-        tool_manager = ToolManager()
-        tools_info = []
+        if global_agent_template is None:
+            initialize_global_agent()
         
-        for tool_name, tool_class in tool_manager.tools.items():
-            if hasattr(tool_class, 'get_definition'):
-                tool_def = tool_class.get_definition()
+        if global_agent_template and global_agent_template.tool_manager:
+            tool_manager = global_agent_template.tool_manager
+            tools_info = []
+            
+            # Correctly access tool definitions via the registry
+            tool_definitions = tool_manager.registry.get_all_tool_definitions()
+            
+            for tool_def_obj in tool_definitions:
+                # Assuming ToolDefinition has attributes: name, description, parameters
+                # (or a method to convert to dict)
+                # For simplicity, let's assume it's a dict-like object or has a to_dict() method
+                if hasattr(tool_def_obj, 'to_dict'):
+                    tool_def = tool_def_obj.to_dict()
+                elif isinstance(tool_def_obj, dict): # If it's already a dict
+                    tool_def = tool_def_obj
+                else: # Fallback if direct attributes are expected (as in original code)
+                     tool_def = {
+                        "name": getattr(tool_def_obj, 'name', 'Unknown Tool'),
+                        "description": getattr(tool_def_obj, 'description', ''),
+                        "parameters": getattr(tool_def_obj, 'parameters', {})
+                    }
+
                 tools_info.append({
-                    'name': tool_name,
+                    'name': tool_def.get('name'),
                     'description': tool_def.get('description', ''),
-                    'parameters': tool_def.get('parameters', {})
+                    'parameters': tool_def.get('parameters', {}).get('properties', {}) # Align with ToolDefinition structure
                 })
-        
-        return jsonify({
-            'tools': tools_info,
-            'count': len(tools_info)
-        })
+            
+            return jsonify({
+                'tools': tools_info,
+                'count': len(tools_info)
+            })
+        else:
+            return jsonify({
+                'tools': [],
+                'count': 0,
+                'error': 'Tool manager not available'
+            })
         
     except Exception as e:
+        logger.error(f"Error getting tools: {e}")
         return jsonify({'error': str(e)}), 500
 
 
 # WebSocket Events
-
 @socketio.on('connect')
 def handle_connect():
     """Handle WebSocket connection."""
@@ -424,9 +531,6 @@ def handle_disconnect():
     
     # Leave room
     leave_room(session_id)
-    
-    # Optionally cleanup session after disconnect
-    # Could implement session timeout instead
 
 
 @socketio.on('send_message')
@@ -480,8 +584,12 @@ def handle_clear_context():
         emit('error', {'message': 'Agent not found'})
         return
     
-    agent.clear_context()
-    emit('context_cleared', {'message': 'Context has been cleared'})
+    try:
+        if hasattr(agent, 'clear_context'):
+            agent.clear_context()
+        emit('context_cleared', {'message': 'Context has been cleared'})
+    except Exception as e:
+        emit('error', {'message': str(e)})
 
 
 @socketio.on('get_context')
@@ -494,14 +602,30 @@ def handle_get_context():
         emit('error', {'message': 'Agent not found'})
         return
     
-    context_summary = agent.get_context_summary()
-    emit('context_summary', {'summary': context_summary})
+    try:
+        context_summary = agent.get_context_summary() if hasattr(agent, 'get_context_summary') else "No context available"
+        emit('context_summary', {'summary': context_summary})
+    except Exception as e:
+        emit('error', {'message': str(e)})
 
 
 def run_server(host='127.0.0.1', port=5000, debug=False):
     """Run the Flask-SocketIO server."""
+    # Initialize global agent on startup
+    logger.info("Initializing HWAgent system...")
+    if initialize_global_agent():
+        logger.info("✅ HWAgent system initialized successfully")
+    else:
+        logger.error("❌ Failed to initialize HWAgent system")
+        return
+    
+    # Create static directory if it doesn't exist
+    static_dir = Path(__file__).parent.parent / 'static'
+    static_dir.mkdir(exist_ok=True)
+    
     logger.info(f"Starting HWAgent API Server on {host}:{port}")
     logger.info(f"Debug mode: {debug}")
+    logger.info(f"Static files: {static_dir}")
     
     socketio.run(
         app,
@@ -513,9 +637,6 @@ def run_server(host='127.0.0.1', port=5000, debug=False):
 
 
 if __name__ == '__main__':
-    # Create static directory if it doesn't exist
-    os.makedirs('static', exist_ok=True)
-    
     run_server(
         host=os.environ.get('HOST', '127.0.0.1'),
         port=int(os.environ.get('PORT', 5000)),

@@ -12,6 +12,7 @@ class HWAgentApp {
         this.streamingEnabled = true;
         this.autoScrollEnabled = true;
         this.currentMessage = null;
+        this.isInitialized = false;
         
         // DOM elements
         this.elements = {};
@@ -22,12 +23,21 @@ class HWAgentApp {
     /**
      * Initialize the application
      */
-    init() {
+    async init() {
         this.cacheElements();
         this.setupEventListeners();
+        
+        // Initialize session first
+        await this.initializeSession();
+        
+        // Then setup WebSocket
         this.initializeWebSocket();
-        this.loadTools();
+        
+        // Load tools and hide loading
+        await this.loadTools();
         this.hideLoadingOverlay();
+        
+        this.isInitialized = true;
     }
     
     /**
@@ -114,6 +124,34 @@ class HWAgentApp {
     }
     
     /**
+     * Initialize session via REST API
+     */
+    async initializeSession() {
+        try {
+            const response = await fetch('/api/sessions', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            });
+            
+            if (!response.ok) {
+                throw new Error(`Failed to create session: ${response.status} ${response.statusText}`);
+            }
+            
+            const data = await response.json();
+            this.sessionId = data.session_id;
+            
+            console.log('Session created:', this.sessionId);
+            this.updateSessionInfo();
+            
+        } catch (error) {
+            console.error('Failed to initialize session:', error);
+            this.showError('Failed to initialize session: ' + error.message);
+        }
+    }
+    
+    /**
      * Initialize WebSocket connection
      */
     initializeWebSocket() {
@@ -138,9 +176,8 @@ class HWAgentApp {
         this.socket.on('connect', () => {
             console.log('WebSocket connected');
             this.isConnected = true;
-            this.sessionId = this.socket.id;
             this.updateConnectionStatus(true);
-            this.updateSessionInfo();
+            this.updateSessionStatus();
         });
         
         this.socket.on('disconnect', () => {
@@ -151,9 +188,7 @@ class HWAgentApp {
         });
         
         this.socket.on('connected', (data) => {
-            console.log('Session established:', data.session_id);
-            this.sessionId = data.session_id;
-            this.updateSessionInfo();
+            console.log('WebSocket session established:', data.session_id);
         });
         
         this.socket.on('stream_start', (data) => {
@@ -198,7 +233,7 @@ class HWAgentApp {
         this.socket.on('connect_error', (error) => {
             console.error('Connection error:', error);
             this.updateConnectionStatus(false);
-            this.showError('Connection failed. Please check your network.');
+            this.showError('Connection failed. Please check if the server is running.');
         });
         
         this.socket.on('reconnect', (attemptNumber) => {
@@ -218,7 +253,12 @@ class HWAgentApp {
      */
     sendMessage() {
         const message = this.elements.messageInput.value.trim();
-        if (!message || !this.isConnected) return;
+        if (!message) return;
+        
+        if (!this.isInitialized) {
+            this.showError('Application is still initializing. Please wait...');
+            return;
+        }
         
         // Add user message to chat
         this.addMessage('user', message);
@@ -226,7 +266,7 @@ class HWAgentApp {
         this.autoResizeTextarea();
         
         // Send to agent
-        if (this.streamingEnabled) {
+        if (this.streamingEnabled && this.isConnected) {
             this.socket.emit('send_message', { message });
         } else {
             this.sendNonStreamingMessage(message);
@@ -240,6 +280,11 @@ class HWAgentApp {
      * Send non-streaming message via REST API
      */
     async sendNonStreamingMessage(message) {
+        if (!this.sessionId) {
+            this.showError('No active session. Please refresh the page.');
+            return;
+        }
+        
         try {
             this.showTypingIndicator();
             this.updateSessionStatus('Processing...');
@@ -253,7 +298,8 @@ class HWAgentApp {
             });
             
             if (!response.ok) {
-                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                const errorData = await response.json().catch(() => ({}));
+                throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`);
             }
             
             const data = await response.json();
@@ -420,13 +466,17 @@ class HWAgentApp {
      * Clear context
      */
     clearContext() {
-        if (!this.isConnected) {
-            this.showError('Not connected to server');
+        if (!this.sessionId) {
+            this.showError('No active session');
             return;
         }
         
         if (confirm('Are you sure you want to clear the conversation context?')) {
-            this.socket.emit('clear_context');
+            if (this.isConnected && this.streamingEnabled) {
+                this.socket.emit('clear_context');
+            } else {
+                this.clearContextREST();
+            }
             
             // Clear chat messages except welcome
             const messages = this.elements.chatMessages.querySelectorAll('.message');
@@ -438,6 +488,25 @@ class HWAgentApp {
             
             // Show welcome message again
             this.showWelcomeMessage();
+        }
+    }
+    
+    /**
+     * Clear context via REST API
+     */
+    async clearContextREST() {
+        try {
+            const response = await fetch(`/api/sessions/${this.sessionId}/context`, {
+                method: 'DELETE'
+            });
+            
+            if (response.ok) {
+                this.showNotification('Context cleared successfully', 'success');
+            } else {
+                throw new Error('Failed to clear context');
+            }
+        } catch (error) {
+            this.showError('Failed to clear context: ' + error.message);
         }
     }
     
@@ -608,7 +677,7 @@ class HWAgentApp {
     hideLoadingOverlay() {
         setTimeout(() => {
             this.elements.loadingOverlay.classList.add('hidden');
-        }, 1000);
+        }, 1500);
     }
     
     /**

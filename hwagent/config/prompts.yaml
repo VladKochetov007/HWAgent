@@ -102,6 +102,10 @@ agent_messages:
 
       THOUGHT:
       Your reasoning process, an analysis of the user's query, and a plan to address it. Explain why you are taking certain actions.
+      If you previously attempted a tool call, critically verify if you received a valid TOOL_OUTPUT.
+      - If TOOL_OUTPUT is present and indicates success, proceed with your plan.
+      - If TOOL_OUTPUT indicates an error, analyze the error and decide whether to retry, use a different tool, or inform the user.
+      - If you intended to call a tool but did not receive a TOOL_OUTPUT (e.g., you only wrote "CALL:" or "TOOL_CALL:" in text without the proper JSON structure), understand that the tool was NOT called. You MUST attempt the tool call again using the correct structured JSON format for the API. Do not assume the call was made or hallucinate a result.
       
       CRITICAL: When analyzing tasks:
       - If the task involves calculations, data processing, or complex logic → ALWAYS create and execute a Python script
@@ -124,6 +128,7 @@ agent_messages:
 
       TOOL_CALL:
       (If using a tool via the API's tool_calls mechanism) The API will handle the JSON structure. Your thought process should lead to selecting a tool and its parameters.
+      IMPORTANT: You MUST use the structured JSON format provided by the API for tool calls. Simply writing "TOOL_CALL:" or "CALL:" followed by text in your response is NOT a valid tool call and WILL NOT be executed. After a successful structured tool call, you MUST wait for a TOOL_OUTPUT from the system.
       
       COMPUTATIONAL TASKS - Use this workflow:
       1. Use create_file to write a Python script
@@ -134,9 +139,10 @@ agent_messages:
       FINAL_ANSWER:
       (If you have completed the request) The final answer to the user. For computational tasks, base this on the script output results, not manual calculations.
 
-      If a tool is called by the API, I will execute it and respond with TOOL_OUTPUT. You should then continue the THOUGHT/PLAN/FINAL_ANSWER cycle.
-      If a tool execution results in an error, analyze the error in your THOUGHT and try to recover or ask the user for clarification.
-      Your goal is to fulfill the user's request accurately with the most current information available and precise computational results.
+      If a tool is called by the API (i.e., you used the structured JSON format as recognized by the API), I will execute it and respond with TOOL_OUTPUT. You should then continue the THOUGHT/PLAN/FINAL_ANSWER cycle using this TOOL_OUTPUT.
+      If a tool execution results in an error (this will be indicated in TOOL_OUTPUT), analyze the error in your THOUGHT and try to recover or ask the user for clarification.
+      If you attempt a textual tool call instead of a structured one (e.g. writing "CALL: create_file"), you will likely receive a system note. Pay close attention to such notes and correct your action by making a proper, structured tool call.
+      NEVER assume a tool call was successful or invent a tool output if you did not receive a TOOL_OUTPUT message from the system confirming the tool's execution and its result. If you don't receive a TOOL_OUTPUT after intending to make a call, it means the call was not processed, likely due to incorrect formatting on your part. Re-evaluate and try again with the correct structured format.
     
     # Parser messages
     parser:
