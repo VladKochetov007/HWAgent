@@ -146,6 +146,9 @@ class HWAgentApp {
         if (this.elements.tmpClosePreviewBtn) {
             this.elements.tmpClosePreviewBtn.addEventListener('click', () => this.closeTmpFilePreview());
         }
+
+        // Collapsible sections
+        this.setupCollapsibleSections();
     }
     
     /**
@@ -879,6 +882,96 @@ class HWAgentApp {
         this.elements.tmpFilePreview.classList.remove('active');
         this.elements.tmpPreviewFileName.textContent = '';
         this.elements.tmpPreviewFileContent.textContent = '';
+    }
+
+    /**
+     * Setup collapsible sections functionality
+     */
+    setupCollapsibleSections() {
+        const sectionHeaders = document.querySelectorAll('.section-header');
+        
+        sectionHeaders.forEach(header => {
+            header.addEventListener('click', (e) => {
+                e.preventDefault();
+                const targetId = header.getAttribute('data-target');
+                const section = header.closest('.collapsible-section');
+                const content = document.getElementById(targetId);
+                
+                if (section && content) {
+                    this.toggleSection(section, content);
+                }
+            });
+        });
+
+        // Load saved section states from localStorage
+        this.loadSectionStates();
+    }
+
+    /**
+     * Toggle section collapse/expand
+     */
+    toggleSection(section, content) {
+        const isCollapsed = section.classList.contains('collapsed');
+        
+        if (isCollapsed) {
+            // Expand
+            section.classList.remove('collapsed');
+            content.style.maxHeight = content.scrollHeight + 'px';
+            
+            // Remove maxHeight after transition to allow dynamic content
+            setTimeout(() => {
+                if (!section.classList.contains('collapsed')) {
+                    content.style.maxHeight = 'none';
+                }
+            }, 300);
+        } else {
+            // Collapse
+            content.style.maxHeight = content.scrollHeight + 'px';
+            // Force reflow
+            content.offsetHeight;
+            content.style.maxHeight = '0';
+            section.classList.add('collapsed');
+        }
+
+        // Save section state
+        this.saveSectionState(section);
+    }
+
+    /**
+     * Save section state to localStorage
+     */
+    saveSectionState(section) {
+        const sectionId = section.querySelector('.section-header').getAttribute('data-target');
+        const isCollapsed = section.classList.contains('collapsed');
+        
+        try {
+            const savedStates = JSON.parse(localStorage.getItem('hwagent_section_states') || '{}');
+            savedStates[sectionId] = isCollapsed;
+            localStorage.setItem('hwagent_section_states', JSON.stringify(savedStates));
+        } catch (error) {
+            console.warn('Failed to save section state:', error);
+        }
+    }
+
+    /**
+     * Load section states from localStorage
+     */
+    loadSectionStates() {
+        try {
+            const savedStates = JSON.parse(localStorage.getItem('hwagent_section_states') || '{}');
+            
+            Object.entries(savedStates).forEach(([sectionId, isCollapsed]) => {
+                const content = document.getElementById(sectionId);
+                const section = content?.closest('.collapsible-section');
+                
+                if (section && content && isCollapsed) {
+                    section.classList.add('collapsed');
+                    content.style.maxHeight = '0';
+                }
+            });
+        } catch (error) {
+            console.warn('Failed to load section states:', error);
+        }
     }
 }
 
