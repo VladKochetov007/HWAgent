@@ -7,7 +7,7 @@ from openai import OpenAI
 
 from hwagent.config_loader import load_yaml_config
 from hwagent.tool_manager import ToolManager
-from hwagent.react_agent import ReActAgent
+from hwagent.react_agent_refactored import ReActAgent
 from hwagent.core import MessageManager
 
 

@@ -24,43 +24,13 @@ class Constants:
     
     # Agent configuration
     MAX_ITERATIONS: Final[int] = 7
+    MAX_REACT_ITERATIONS: Final[int] = 25
     DEFAULT_STREAMING_ENABLED: Final[bool] = True
     EXECUTION_TIMEOUT_SECONDS: Final[int] = 30
     
     # File validation
     FORBIDDEN_PATH_SEGMENTS: Final[tuple[str, ...]] = ("..", )
     MAX_FILE_SIZE_BYTES: Final[int] = 10 * 1024 * 1024  # 10MB
-    
-    # Response parsing markers
-    THOUGHT_MARKER: Final[str] = "THOUGHT:"
-    PLAN_MARKER: Final[str] = "PLAN:"
-    TOOL_CALL_MARKER: Final[str] = "TOOL_CALL:"
-    FINAL_ANSWER_MARKER: Final[str] = "FINAL_ANSWER:"
-    
-    # Tool execution
-    TOOL_ERROR_PREFIX: Final[str] = "Error:"
-    TOOL_SUCCESS_PREFIX: Final[str] = "Successfully"
-    
-    # Special commands
-    COMMAND_PREFIX: Final[str] = "/"
-    EXIT_COMMANDS: Final[tuple[str, ...]] = ("exit", "/exit")
-    CLEAR_COMMAND: Final[str] = "/clear"
-    CONTEXT_COMMAND: Final[str] = "/context"
-    STREAM_COMMAND: Final[str] = "/stream"
-    
-    # Stream command options
-    STREAM_ON: Final[str] = "on"
-    STREAM_OFF: Final[str] = "off"
-    
-    # Message roles
-    ROLE_SYSTEM: Final[str] = "system"
-    ROLE_USER: Final[str] = "user"
-    ROLE_ASSISTANT: Final[str] = "assistant"
-    ROLE_TOOL: Final[str] = "tool"
-    
-    # Tool choice options
-    TOOL_CHOICE_AUTO: Final[str] = "auto"
-    TOOL_CHOICE_NONE: Final[str] = "none"
     
     # File extensions
     PYTHON_EXTENSIONS: Final[tuple[str, ...]] = (".py",)

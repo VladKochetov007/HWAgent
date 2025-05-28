@@ -1,344 +1,563 @@
-import os
-import json
-import re
-from typing import Any, Dict, List, Iterator, Tuple, Optional
+"""
+Refactored ReAct Agent following SOLID principles.
+Breaking down the monolithic agent into focused, single-responsibility components.
+"""
+
+from typing import Any
 from openai import OpenAI
-import time
-from dataclasses import dataclass
-import sys
 
-# Assuming tool_manager.py is in the same directory or accessible via python path
-from hwagent.tool_manager import ToolManager 
+from hwagent.tool_manager import ToolManager
+from hwagent.core import (
+    MessageManager, StreamingHandlerImpl, ResponseParser, 
+    ConversationManagerImpl, ToolExecutor, LLMClient, Constants
+)
 
-@dataclass
-class ParsedLLMResponse:
-    thought: str | None = None
-    plan: list[str] | None = None
-    tool_call_name: str | None = None # From text-based parsing, for warning or fallback
-    tool_call_params: dict[str, Any] | None = None # From text-based parsing
-    final_answer: str | None = None
-    raw_text: str = ""
 
-class ReActAgent:
-    MAX_ITERATIONS = 7 # Increased slightly to allow for more complex multi-step tasks
-
-    def __init__(self, client: OpenAI, model_name: str, tool_manager: ToolManager, base_system_prompt: str, agent_prompts: dict, enable_streaming: bool = True):
-        self.client = client
-        self.model_name = model_name
+class SystemPromptBuilder:
+    """Builds system prompts for the agent. Following SRP."""
+    
+    def __init__(self, tool_manager: ToolManager, message_manager: MessageManager):
+        """
+        Initialize SystemPromptBuilder.
+        
+        Args:
+            tool_manager: Tool manager for getting tool definitions
+            message_manager: Message manager for prompt templates
+        """
         self.tool_manager = tool_manager
-        self.base_system_prompt = base_system_prompt.strip()
-        self.enable_streaming = enable_streaming
+        self.message_manager = message_manager
+    
+    def build_system_prompt(self, base_prompt: str, agent_prompts: dict[str, Any]) -> str:
+        """
+        Build complete system prompt.
         
-        # Initialize message templates first (needed for system prompt construction)
-        self.messages = agent_prompts # From prompts.yaml agent_messages.react_agent
-        self.parser_msgs = self.messages.get("parser", {})
+        Args:
+            base_prompt: Base system prompt from configuration
+            agent_prompts: Agent prompt templates
+            
+        Returns:
+            Complete system prompt string
+        """
+        tool_definitions = self.tool_manager.get_tool_definitions_for_prompt()
         
-        # Persistent conversation history - this will maintain context across user requests
-        self.persistent_conversation_history: list[dict[str, Any]] = []
-        self._initialize_system_prompt()
-
-    def _initialize_system_prompt(self):
-        """Initialize the system prompt once and add it to persistent history."""
-        if not self.persistent_conversation_history:
-            full_system_prompt = self._construct_full_system_prompt()
-            self.persistent_conversation_history = [
-                {"role": "system", "content": full_system_prompt}
-            ]
-
-    def _construct_full_system_prompt(self) -> str:
-        tool_defs_for_text_prompt = self.tool_manager.get_tool_definitions_for_prompt() # For the text part of system prompt
-        base_addition_template = self.messages.get("base_system_prompt_addition", "")
-        # Note: The actual tool definitions for the API are passed in the 'tools' parameter of the API call.
-        # The TOOL_DEFINITIONS here is for the LLM's textual understanding and ReAct formatting.
-        return f"""{self.base_system_prompt}
-{base_addition_template.format(tool_defs=tool_defs_for_text_prompt)}
+        # Get base addition template from agent prompts
+        base_addition_template = agent_prompts.get("base_system_prompt_addition", "")
+        
+        return f"""{base_prompt}
+{base_addition_template.format(tool_defs=tool_definitions)}
 
 IMPORTANT: You maintain memory of our entire conversation. You can reference previous messages, files created earlier, and build upon previous work.
 """
 
-    def _stream_response(self, completion_stream) -> tuple[str, list]:
-        """Handle streaming response and return accumulated content and tool calls."""
-        accumulated_content = ""
-        tool_calls_buffer = {}
-        final_tool_calls = []
+
+class ResponseDisplayManager:
+    """Manages response display and logging. Following SRP."""
+    
+    def __init__(self, message_manager: MessageManager):
+        """
+        Initialize ResponseDisplayManager.
         
-        print("Bot: ", end="", flush=True)
+        Args:
+            message_manager: Message manager for display messages
+        """
+        self.message_manager = message_manager
+    
+    def print_iteration_header(self, iteration: int) -> None:
+        """Print iteration header."""
+        header = self.message_manager.format_message(
+            "react_agent", "iteration_header", iteration=iteration
+        )
+        print(header)
+    
+    def print_debug_info(self, assistant_content: str, tool_calls: list[Any], streaming_enabled: bool) -> None:
+        """Print debug information about LLM response."""
+        if not streaming_enabled:
+            header = self.message_manager.get_message("react_agent", "llm_raw_output_header")
+            print(f"{header}\n{assistant_content}")
         
-        for chunk in completion_stream:
-            if not chunk.choices:
-                continue
-                
-            choice = chunk.choices[0]
-            delta = choice.delta
+        if tool_calls:
+            header = self.message_manager.format_message(
+                "react_agent", "llm_tool_calls_header", tool_calls=tool_calls
+            )
+            print(header)
+    
+    def print_parsed_components(self, thought: str | None, plan: list[str] | None, final_answer: str | None) -> None:
+        """Print parsed response components."""
+        if thought:
+            print(self.message_manager.format_message("react_agent", "thought_header", thought=thought))
+        
+        if plan:
+            print(self.message_manager.format_message("react_agent", "plan_header", plan=plan))
+        
+        if final_answer:
+            print(self.message_manager.format_message("react_agent", "final_answer_header", final_answer=final_answer))
+
+
+class IterationProcessor:
+    """Processes single iterations of the ReAct loop. Following SRP."""
+    
+    def __init__(self, llm_client: LLMClient, response_parser: ResponseParser, 
+                 tool_executor: ToolExecutor, display_manager: ResponseDisplayManager):
+        """
+        Initialize IterationProcessor.
+        
+        Args:
+            llm_client: LLM client for API communication
+            response_parser: Parser for LLM responses
+            tool_executor: Tool executor for running tools
+            display_manager: Display manager for output
+        """
+        self.llm_client = llm_client
+        self.response_parser = response_parser
+        self.tool_executor = tool_executor
+        self.display_manager = display_manager
+    
+    def process_iteration(self, iteration: int, conversation_manager: ConversationManagerImpl, 
+                         tools_for_api: list[dict[str, Any]]) -> str | None:
+        """
+        Process a single iteration of the ReAct loop.
+        
+        Args:
+            iteration: Current iteration number
+            conversation_manager: Conversation manager
+            tools_for_api: Tool definitions for API
             
-            # Handle content streaming
-            if delta.content:
-                accumulated_content += delta.content
-                print(delta.content, end="", flush=True)
+        Returns:
+            Final answer if found, None to continue iterations
+        """
+        self.display_manager.print_iteration_header(iteration)
+        
+        try:
+            # Get LLM response
+            assistant_content, assistant_message = self.llm_client.get_llm_response(
+                conversation_manager.get_conversation_history(),
+                tools_for_api
+            )
             
-            # Handle tool calls streaming
-            if delta.tool_calls:
-                for tool_call_delta in delta.tool_calls:
-                    index = tool_call_delta.index
-                    
-                    if index not in tool_calls_buffer:
-                        tool_calls_buffer[index] = {
-                            "id": "",
-                            "type": "function",
-                            "function": {"name": "", "arguments": ""}
-                        }
-                    
-                    if tool_call_delta.id:
-                        tool_calls_buffer[index]["id"] = tool_call_delta.id
-                    
-                    if tool_call_delta.function:
-                        if tool_call_delta.function.name:
-                            tool_calls_buffer[index]["function"]["name"] += tool_call_delta.function.name
-                        if tool_call_delta.function.arguments:
-                            tool_calls_buffer[index]["function"]["arguments"] += tool_call_delta.function.arguments
+            # Add to conversation
+            conversation_manager.add_assistant_message(assistant_message)
             
-            # Check if streaming is finished
-            if choice.finish_reason:
+            # Display debug info
+            self.display_manager.print_debug_info(
+                assistant_content, 
+                assistant_message.tool_calls,
+                self.llm_client.enable_streaming
+            )
+            
+            # Parse response
+            parsed_response = self.response_parser.parse_llm_response(assistant_content)
+            
+            # Display parsed components
+            self.display_manager.print_parsed_components(
+                parsed_response.thought,
+                parsed_response.plan,
+                parsed_response.final_answer
+            )
+            
+            # Handle response based on type
+            return self._handle_parsed_response(
+                assistant_message, parsed_response, conversation_manager
+            )
+            
+        except Exception as e:
+            return self._handle_iteration_error(e, conversation_manager)
+    
+    def _handle_parsed_response(self, assistant_message: Any, parsed_response: Any, 
+                               conversation_manager: ConversationManagerImpl) -> str | None:
+        """Handle parsed response based on its type."""
+        # API tool calls have priority
+        if assistant_message.tool_calls:
+            self.tool_executor.execute_api_tool_calls(assistant_message.tool_calls, conversation_manager)
+            return None
+        
+        # Text-based tool call (warning case) - provide corrective feedback
+        elif parsed_response.has_tool_call():
+            self._handle_malformed_tool_call(parsed_response, conversation_manager)
+            return None
+        
+        # Final answer
+        elif parsed_response.has_final_answer():
+            return parsed_response.final_answer
+        
+        # No clear action - handle accordingly
+        else:
+            return self._handle_no_action_response(assistant_message.content, conversation_manager)
+    
+    def _handle_malformed_tool_call(self, parsed_response: Any, conversation_manager: ConversationManagerImpl) -> None:
+        """Handle malformed tool calls with corrective feedback."""
+        tool_name = parsed_response.tool_call_name
+        
+        # Add detailed corrective feedback to help the agent fix the tool call
+        corrective_feedback = self.message_manager.format_message(
+            "react_agent", "malformed_tool_call_feedback",
+            tool_name=tool_name
+        )
+        print(corrective_feedback)
+        conversation_manager.add_system_note(corrective_feedback)
+    
+    def _handle_no_action_response(self, content: str, conversation_manager: ConversationManagerImpl) -> str | None:
+        """Handle response with no clear action."""
+        if content.strip():
+            # Check if this looks like a repetitive question or request for same information
+            if self._is_repetitive_question(content, conversation_manager):
+                # Try to make intelligent assumptions based on context
+                return self._handle_repetitive_request(content, conversation_manager)
+            
+            # Check if this looks like a direct answer to the user's question
+            # If the content seems to be answering the question directly, treat it as final answer
+            if self._is_likely_final_answer(content):
+                return content.strip()
+            else:
+                # LLM provided text but no action
+                print(self.display_manager.message_manager.get_message("react_agent", "bot_text_but_no_action_note"))
+                return None
+        else:
+            # Empty response
+            empty_msg = self.display_manager.message_manager.get_message("react_agent", "model_empty_response_note")
+            system_note = self.display_manager.message_manager.get_message("react_agent", "model_empty_response_system_note")
+            print(empty_msg)
+            conversation_manager.add_system_note(system_note)
+            return ""  # Return empty string to indicate empty response
+    
+    def _is_repetitive_question(self, content: str, conversation_manager: ConversationManagerImpl) -> bool:
+        """Check if the agent is asking the same question repeatedly."""
+        content_lower = content.lower()
+        
+        # Get recent assistant messages
+        history = conversation_manager.get_conversation_history()
+        recent_assistant_messages = [
+            msg['content'] for msg in history[-6:] 
+            if msg.get('role') == 'assistant' and msg.get('content')
+        ]
+        
+        # Check for repetitive patterns
+        repetitive_patterns = [
+            "what should the name", "filename", "content you want", 
+            "provide both", "tell me two things", "need you to"
+        ]
+        
+        current_has_pattern = any(pattern in content_lower for pattern in repetitive_patterns)
+        
+        if current_has_pattern and len(recent_assistant_messages) >= 3:
+            # Count how many recent messages have similar patterns
+            similar_count = sum(
+                1 for msg in recent_assistant_messages 
+                if any(pattern in msg.lower() for pattern in repetitive_patterns)
+            )
+            return similar_count >= 3
+        
+        return False
+    
+    def _handle_repetitive_request(self, content: str, conversation_manager: ConversationManagerImpl) -> str | None:
+        """Handle repetitive requests by making intelligent assumptions."""
+        history = conversation_manager.get_conversation_history()
+        
+        # Look for the original user request
+        user_request = None
+        for msg in reversed(history):
+            if msg.get('role') == 'user':
+                user_request = msg.get('content', '')
                 break
         
-        print()  # New line after streaming
+        if not user_request:
+            return "I couldn't find your original request. Please provide more specific instructions."
         
-        # Convert tool calls buffer to final format
-        for index in sorted(tool_calls_buffer.keys()):
-            tool_call = tool_calls_buffer[index]
-            # Create a proper tool call object
-            class ToolCall:
-                def __init__(self, id_, type_, function):
-                    self.id = id_
-                    self.type = type_
-                    self.function = Function(function["name"], function["arguments"])
-            
-            class Function:
-                def __init__(self, name, arguments):
-                    self.name = name
-                    self.arguments = arguments
-            
-            final_tool_calls.append(ToolCall(
-                tool_call["id"],
-                tool_call["type"],
-                tool_call["function"]
-            ))
+        # Check if it's a file creation request
+        if 'file' in user_request.lower() or 'write' in user_request.lower():
+            return self._handle_file_creation_with_context(user_request, history)
         
-        return accumulated_content, final_tool_calls
-
-    def _parse_llm_response(self, response_text: str) -> ParsedLLMResponse:
-        parsed = ParsedLLMResponse(raw_text=response_text)
-
-        thought_match = re.search(r"THOUGHT:(.*?)(PLAN:|TOOL_CALL:|FINAL_ANSWER:|$)", response_text, re.DOTALL | re.IGNORECASE)
-        if thought_match:
-            parsed.thought = thought_match.group(1).strip()
-
-        plan_match = re.search(r"PLAN:(.*?)(TOOL_CALL:|FINAL_ANSWER:|$)", response_text, re.DOTALL | re.IGNORECASE)
-        if plan_match:
-            plan_text = plan_match.group(1).strip()
-            parsed.plan = [step.strip() for step in re.findall(r"^\d+\.\s*(.*)", plan_text, re.MULTILINE)]
-
-        tool_call_marker_str = "TOOL_CALL:"
-        temp_response_text_upper = response_text.upper()
-        tool_call_marker_pos = temp_response_text_upper.find(tool_call_marker_str)
-        tool_call_parsed_successfully = False
-
-        if tool_call_marker_pos != -1:
-            search_for_brace_start_pos = tool_call_marker_pos + len(tool_call_marker_str)
-            first_brace_pos_in_suffix = -1
-            for i in range(search_for_brace_start_pos, len(response_text)):
-                if response_text[i] == '{':
-                    first_brace_pos_in_suffix = i
+        # For other repetitive requests, provide a helpful response
+        return f"I notice I've been asking the same question repeatedly. Based on your request '{user_request}', let me try to proceed with reasonable assumptions or provide a more specific response."
+    
+    def _handle_file_creation_with_context(self, user_request: str, history: list) -> str | None:
+        """Handle file creation using context from conversation."""
+        # Look for content in the conversation that could be written to a file
+        potential_content = ""
+        
+        # Check for large text blocks in recent messages
+        for msg in reversed(history[-10:]):  # Look at last 10 messages
+            if msg.get('role') == 'user' and msg.get('content'):
+                content = msg['content']
+                # If user message is long, it might be content to write
+                if len(content) > 100:
+                    potential_content = content
                     break
-                elif not response_text[i].isspace():
-                    break
-            
-            if first_brace_pos_in_suffix != -1:
-                json_text_segment_to_decode = response_text[first_brace_pos_in_suffix:]
-                decoder = json.JSONDecoder()
-                try:
-                    tool_call_data, _ = decoder.raw_decode(json_text_segment_to_decode)
-                    parsed.tool_call_name = tool_call_data.get("tool_name")
-                    parsed.tool_call_params = tool_call_data.get("parameters")
-                    tool_call_parsed_successfully = True # Parsed from text
-                    if not parsed.tool_call_name:
-                        msg = self.parser_msgs.get("tool_call_missing_name_warning", "")
-                        print(f"Warning: {msg}")
-                        parsed.thought = (parsed.thought + "\n" if parsed.thought else "") + msg
-                        tool_call_parsed_successfully = False
-                except json.JSONDecodeError as e:
-                    err_msg_template = self.parser_msgs.get("tool_call_json_decode_error_warning", "")
-                    err_msg = err_msg_template.format(error=e, segment=json_text_segment_to_decode[:100].strip())
-                    print(f"Warning: {err_msg}")
-                    parsed.thought = (parsed.thought + "\n" if parsed.thought else "") + f"[System Error: {err_msg}]"
-            else:
-                err_msg = self.parser_msgs.get("tool_call_no_brace_warning", "")
-                print(f"Warning: {err_msg}")
-                parsed.thought = (parsed.thought + "\n" if parsed.thought else "") + f"[System Error: {err_msg}]"
-
-        if not tool_call_parsed_successfully: # Only look for FINAL_ANSWER if no text-based tool call was parsed
-            final_answer_marker_str = "FINAL_ANSWER:"
-            final_answer_marker_pos = temp_response_text_upper.rfind(final_answer_marker_str)
-            if final_answer_marker_pos != -1:
-                is_part_of_thought = parsed.thought and final_answer_marker_str in parsed.thought.upper()
-                is_part_of_plan = False
-                if parsed.plan:
-                    for p_step in parsed.plan:
-                        if final_answer_marker_str in p_step.upper():
-                            is_part_of_plan = True
+        
+        # If no substantial content found, look for assistant responses that might be research
+        if not potential_content:
+            for msg in reversed(history[-10:]):
+                if msg.get('role') == 'assistant' and msg.get('content'):
+                    content = msg['content']
+                    # Look for research-like content
+                    if any(keyword in content.lower() for keyword in ['research', 'hypothesis', 'markdown', 'efficiency', 'data']):
+                        if len(content) > 200:
+                            potential_content = content
                             break
-                if not (is_part_of_thought or is_part_of_plan):
-                    final_answer_start_pos = final_answer_marker_pos + len(final_answer_marker_str)
-                    parsed.final_answer = response_text[final_answer_start_pos:].strip()
         
-        if tool_call_parsed_successfully:
-             parsed.final_answer = None # Ensure no final answer if a text tool call was parsed
-
-        return parsed
-
-    def clear_context(self):
-        """Clear conversation history but keep system prompt."""
-        self.persistent_conversation_history = []
-        self._initialize_system_prompt()
-        print("Conversation context cleared.")
-
-    def get_context_summary(self) -> str:
-        """Get a summary of current conversation context."""
-        if len(self.persistent_conversation_history) <= 1:
-            return "No conversation history (only system prompt)."
-        
-        user_messages = len([msg for msg in self.persistent_conversation_history if msg["role"] == "user"])
-        assistant_messages = len([msg for msg in self.persistent_conversation_history if msg["role"] == "assistant"])
-        tool_messages = len([msg for msg in self.persistent_conversation_history if msg["role"] == "tool"])
-        
-        return f"Context: {user_messages} user messages, {assistant_messages} assistant messages, {tool_messages} tool results."
-
-    def process_user_request(self, user_input: str) -> str:
-        """Process user request while maintaining conversation context."""
-        # Add user message to persistent history
-        self.persistent_conversation_history.append({"role": "user", "content": user_input})
-
-        tools_for_api = self.tool_manager.get_tools_for_api()
-
-        for iteration in range(self.MAX_ITERATIONS):
-            print(f"--- Agent Iteration {iteration + 1} ---")
+        if potential_content:
+            # Create a reasonable filename based on content
+            filename = self._generate_filename_from_content(potential_content)
+            
+            # Use the create_file tool with the found content
             try:
-                completion_params: dict[str, Any] = {
-                    "model": self.model_name,
-                    "messages": self.persistent_conversation_history,
-                    "stream": self.enable_streaming
-                }
-                if tools_for_api:
-                    completion_params["tools"] = tools_for_api
-                    completion_params["tool_choice"] = "auto" # Explicitly set to auto
-
-                if self.enable_streaming:
-                    completion_stream = self.client.chat.completions.create(**completion_params)
-                    assistant_response_text_content, tool_calls = self._stream_response(completion_stream)
-                    
-                    # Create assistant message object
-                    class AssistantMessage:
-                        def __init__(self, content, tool_calls):
-                            self.content = content
-                            self.tool_calls = tool_calls if tool_calls else None
-                            
-                        def model_dump(self, exclude_none=True):
-                            result = {"role": "assistant", "content": self.content}
-                            if self.tool_calls and not exclude_none:
-                                result["tool_calls"] = [
-                                    {
-                                        "id": tc.id,
-                                        "type": tc.type,
-                                        "function": {
-                                            "name": tc.function.name,
-                                            "arguments": tc.function.arguments
-                                        }
-                                    } for tc in self.tool_calls
-                                ]
-                            return result
-                    
-                    assistant_message_obj = AssistantMessage(assistant_response_text_content, tool_calls)
-                else:
-                    completion = self.client.chat.completions.create(**completion_params)
-                    
-                    if not (completion.choices and completion.choices[0].message):
-                        error_msg = self.messages.get("failed_to_get_model_response_error", "")
-                        self.persistent_conversation_history.append({"role": "assistant", "content": f"[System Error: {error_msg}]"})
-                        return error_msg
-
-                    assistant_message_obj = completion.choices[0].message
-                    assistant_response_text_content = assistant_message_obj.content or ""
-                    print(f"Bot: {assistant_response_text_content}")
-
-                # Add assistant message to persistent history
-                self.persistent_conversation_history.append(assistant_message_obj.model_dump(exclude_none=True))
-
-                if not self.enable_streaming:
-                    print(f"LLM Raw Output (text part):\n{assistant_response_text_content}")
-                if assistant_message_obj.tool_calls:
-                    print(f"LLM Tool Calls (structured): {assistant_message_obj.tool_calls}")
-                
-                parsed_text_parts = self._parse_llm_response(assistant_response_text_content)
-
-                if parsed_text_parts.thought:
-                    print(f"THOUGHT: {parsed_text_parts.thought}")
-                if parsed_text_parts.plan:
-                    print(f"PLAN: {parsed_text_parts.plan}")
-
-                if assistant_message_obj.tool_calls:
-                    for tool_call_api_obj in assistant_message_obj.tool_calls:
-                        tool_call_id = tool_call_api_obj.id
-                        tool_name_from_api = tool_call_api_obj.function.name
-                        tool_params_str_from_api = tool_call_api_obj.function.arguments
-                        print(f"Executing API Tool Call: ID={tool_call_id}, Name={tool_name_from_api}, Args='{tool_params_str_from_api}'")
-                        try:
-                            tool_params_dict = json.loads(tool_params_str_from_api)
-                        except json.JSONDecodeError as e:
-                            print(f"Error decoding tool arguments JSON: {e}")
-                            tool_output_content = self.messages.get("failed_to_parse_tool_args_error", "").format(tool_name=tool_name_from_api, error=e, args=tool_params_str_from_api)
-                            self.persistent_conversation_history.append({"role": "tool", "tool_call_id": tool_call_id, "name": tool_name_from_api, "content": tool_output_content})
-                            continue
-                        
-                        raw_tool_output = self.tool_manager.execute_tool(tool_name_from_api, tool_params_dict)
-                        print(f"Raw TOOL_OUTPUT from manager: {raw_tool_output}")
-                        formatted_tool_output_content: str
-                        if raw_tool_output.lower().startswith("error:"):
-                            error_detail = raw_tool_output[len('error:'):].strip()
-                            formatted_tool_output_content = f"*error while calling tool: {error_detail}*"
-                        else:
-                            formatted_tool_output_content = raw_tool_output
-                        print(f"Formatted TOOL_OUTPUT for history: {formatted_tool_output_content}")
-                        self.persistent_conversation_history.append({"role": "tool", "tool_call_id": tool_call_id, "name": tool_name_from_api, "content": formatted_tool_output_content})
-                
-                elif parsed_text_parts.tool_call_name and parsed_text_parts.tool_call_params is not None: # Text-based tool call detected
-                    warning_msg_template = self.messages.get("text_tool_call_warning", "")
-                    warning_msg = warning_msg_template.format(tool_name=parsed_text_parts.tool_call_name)
-                    print(warning_msg)
-                    error_content_for_llm_template = self.messages.get("text_tool_call_system_note", "")
-                    error_content_for_llm = error_content_for_llm_template.format(tool_name=parsed_text_parts.tool_call_name)
-                    self.persistent_conversation_history.append({"role": "assistant", "content": error_content_for_llm})
-                
-                elif parsed_text_parts.final_answer:
-                    print(f"FINAL_ANSWER: {parsed_text_parts.final_answer}")
-                    return parsed_text_parts.final_answer
-                
-                elif assistant_response_text_content.strip(): # LLM provided text, but no API tool call, no text tool call, no final answer
-                    print(self.messages.get("bot_text_but_no_action_note", ""))
-                
-                else: # Empty response from LLM
-                    no_action_msg = self.messages.get("model_empty_response_note", "")
-                    print(no_action_msg)
-                    self.persistent_conversation_history.append({"role": "assistant", "content": self.messages.get("model_empty_response_system_note", "")})
-                    return no_action_msg
-
+                result = self.tool_manager.execute_tool('create_file', {
+                    'filepath': filename,
+                    'content': potential_content
+                })
+                return f"I found substantial content in our conversation and wrote it to {filename}. {result}"
             except Exception as e:
-                error_msg_template = self.messages.get("agent_processing_error", "")
-                error_msg = error_msg_template.format(error=str(e))
-                print(error_msg)
-                self.persistent_conversation_history.append({"role": "assistant", "content": f"[System Error: {error_msg}]"})
-                return error_msg
+                return f"I attempted to create a file with the content from our conversation, but encountered an error: {e}"
+        
+        # If no content found, create a simple example file
+        default_filename = "user_request.txt"
+        default_content = f"User request: {user_request}\nTimestamp: {self._get_current_time()}"
+        
+        try:
+            result = self.tool_manager.execute_tool('create_file', {
+                'filepath': default_filename,
+                'content': default_content
+            })
+            return f"I created {default_filename} with your request. {result}"
+        except Exception as e:
+            return f"I tried to create a default file but encountered an error: {e}"
+    
+    def _generate_filename_from_content(self, content: str) -> str:
+        """Generate a reasonable filename based on content."""
+        content_lower = content.lower()
+        
+        # Check for specific content types
+        if 'market efficiency' in content_lower or 'emh' in content_lower:
+            return "market_efficiency_research.md"
+        elif 'research' in content_lower and 'hypothesis' in content_lower:
+            return "research_outline.md"
+        elif any(keyword in content_lower for keyword in ['python', 'def ', 'import ', 'class ']):
+            return "script.py"
+        elif 'markdown' in content_lower or '##' in content:
+            return "document.md"
+        elif 'data' in content_lower or 'analysis' in content_lower:
+            return "data_analysis.txt"
+        else:
+            return "content.txt"
+    
+    def _get_current_time(self) -> str:
+        """Get current timestamp as string."""
+        import datetime
+        return datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    
+    def _is_likely_final_answer(self, content: str) -> bool:
+        """
+        Determine if content looks like a final answer.
+        
+        Args:
+            content: Response content to analyze
+            
+        Returns:
+            True if content looks like a final answer
+        """
+        content_lower = content.lower().strip()
+        
+        # Skip if it contains typical reasoning patterns
+        reasoning_indicators = [
+            "i need to", "i should", "let me", "i'll", "i will",
+            "first i", "then i", "next i", "step", "plan:",
+            "thought:", "tool_call:"
+        ]
+        
+        if any(indicator in content_lower for indicator in reasoning_indicators):
+            return False
+        
+        # Check if it's a direct informational response
+        answer_indicators = [
+            "there are", "these are", "the files are", "here are",
+            "the answer is", "the result is", "it contains",
+            "your workspace", "in the workspace", "files in"
+        ]
+        
+        if any(indicator in content_lower for indicator in answer_indicators):
+            return True
+        
+        # If content is relatively short and declarative, likely an answer
+        sentences = content.split('.')
+        if len(sentences) <= 3 and len(content) < 200:
+            return True
+        
+        return False
+    
+    def _handle_iteration_error(self, error: Exception, conversation_manager: ConversationManagerImpl) -> str:
+        """Handle errors during iteration processing."""
+        error_msg = str(error)
+        
+        # Provide specific feedback for common error types
+        if "function response parts" in error_msg.lower():
+            specific_msg = self.display_manager.message_manager.get_message(
+                "react_agent", "function_parts_error_recovery"
+            )
+            print(specific_msg)
+            conversation_manager.add_system_note(specific_msg)
+            return None  # Don't terminate, let agent retry
+        
+        elif "tool_call" in error_msg.lower() or "json" in error_msg.lower():
+            specific_msg = self.display_manager.message_manager.get_message(
+                "react_agent", "tool_call_error_recovery"
+            )
+            print(specific_msg)
+            conversation_manager.add_system_note(specific_msg)
+            return None  # Don't terminate, let agent retry
+        
+        else:
+            # Generic error handling
+            formatted_error_msg = self.display_manager.message_manager.format_message(
+                "react_agent", "agent_processing_error", error=error_msg
+            )
+            print(formatted_error_msg)
+            conversation_manager.add_system_note(f"[System Error: {formatted_error_msg}]")
+            return None  # Don't terminate on first error, let agent retry
 
-        max_iter_msg = self.messages.get("max_iterations_reached_message", "")
+
+class ReActAgent:
+    """
+    Refactored ReAct Agent following SOLID principles.
+    Each component has a single responsibility and focused methods.
+    """
+    
+    def __init__(self, client: OpenAI, model_name: str, tool_manager: ToolManager, 
+                 base_system_prompt: str, agent_prompts: dict[str, Any], enable_streaming: bool = True):
+        """
+        Initialize ReAct Agent with dependency injection.
+        
+        Args:
+            client: OpenAI client
+            model_name: Model name to use
+            tool_manager: Tool manager instance
+            base_system_prompt: Base system prompt
+            agent_prompts: Agent prompt templates
+            enable_streaming: Whether to enable streaming
+        """
+        self.tool_manager = tool_manager
+        
+        # Initialize core components
+        self.message_manager = MessageManager()
+        self.conversation_manager = ConversationManagerImpl(self.message_manager)
+        self.llm_client = LLMClient(client, model_name, self.message_manager, enable_streaming)
+        
+        # Initialize specialized components
+        self.response_parser = ResponseParser(self.message_manager)
+        self.tool_executor = ToolExecutor(tool_manager, self.message_manager)
+        self.display_manager = ResponseDisplayManager(self.message_manager)
+        
+        # Build system prompt
+        self.system_prompt_builder = SystemPromptBuilder(tool_manager, self.message_manager)
+        system_prompt = self.system_prompt_builder.build_system_prompt(base_system_prompt, agent_prompts)
+        
+        # Initialize conversation
+        self.conversation_manager.initialize_with_system_prompt(system_prompt)
+        
+        # Initialize iteration processor
+        self.iteration_processor = IterationProcessor(
+            self.llm_client, self.response_parser, self.tool_executor, self.display_manager
+        )
+    
+    def process_user_request(self, user_input: str) -> str:
+        """
+        Process user request through ReAct loop.
+        
+        Args:
+            user_input: User's input message
+            
+        Returns:
+            Final response from agent
+        """
+        # Add user message to conversation
+        self.conversation_manager.add_user_message(user_input)
+        
+        # Get tools for API
+        tools_for_api = self.tool_manager.get_tools_for_api()
+        
+        # Process iterations with early termination logic
+        consecutive_empty_responses = 0
+        consecutive_errors = 0
+        max_empty_responses = 3  # Allow up to 3 consecutive empty responses before terminating
+        max_consecutive_errors = 5  # Allow up to 5 consecutive errors before terminating
+        
+        for iteration in range(1, Constants.MAX_REACT_ITERATIONS + 1):
+            try:
+                result = self.iteration_processor.process_iteration(
+                    iteration, self.conversation_manager, tools_for_api
+                )
+                
+                # Reset error counter on successful iteration
+                consecutive_errors = 0
+                
+                if result is not None:
+                    # Check if result is an actual answer or error message
+                    if result.strip():
+                        return result
+                    else:
+                        consecutive_empty_responses += 1
+                else:
+                    consecutive_empty_responses = 0  # Reset counter on successful tool execution
+                
+                # Early termination if too many consecutive empty responses
+                if consecutive_empty_responses >= max_empty_responses:
+                    early_term_msg = self.message_manager.get_message("react_agent", "early_termination_message")
+                    print(early_term_msg)
+                    self.conversation_manager.add_system_note(early_term_msg)
+                    return early_term_msg
+                    
+            except Exception as e:
+                consecutive_errors += 1
+                consecutive_empty_responses = 0  # Don't count errors as empty responses
+                
+                error_msg = f"Error in iteration {iteration}: {str(e)}"
+                print(error_msg)
+                
+                # Add helpful feedback for common errors
+                if "function response parts" in str(e).lower():
+                    recovery_msg = self.message_manager.get_message("react_agent", "function_parts_error_recovery")
+                    self.conversation_manager.add_system_note(recovery_msg)
+                    print(recovery_msg)
+                elif "tool_call" in str(e).lower():
+                    tool_error_msg = self.message_manager.get_message("react_agent", "tool_call_error_recovery")
+                    self.conversation_manager.add_system_note(tool_error_msg)
+                    print(tool_error_msg)
+                
+                # Early termination if too many consecutive errors
+                if consecutive_errors >= max_consecutive_errors:
+                    error_term_msg = self.message_manager.get_message("react_agent", "error_termination_message")
+                    print(error_term_msg)
+                    self.conversation_manager.add_system_note(error_term_msg)
+                    return error_term_msg
+        
+        # Max iterations reached
+        max_iter_msg = self.message_manager.get_message("react_agent", "max_iterations_reached_message")
         print(max_iter_msg)
-        self.persistent_conversation_history.append({"role": "assistant", "content": max_iter_msg})
-        return max_iter_msg 
+        self.conversation_manager.add_system_note(max_iter_msg)
+        return max_iter_msg
+    
+    def clear_context(self) -> None:
+        """Clear conversation context but keep system prompt."""
+        self.conversation_manager.clear_conversation()
+        print(self.message_manager.get_message("react_agent", "context_cleared"))
+    
+    def get_context_summary(self) -> str:
+        """Get summary of current conversation context."""
+        return self.conversation_manager.get_context_summary()
+    
+    def set_streaming_enabled(self, enabled: bool) -> None:
+        """Enable or disable streaming responses."""
+        self.llm_client.toggle_streaming(enabled)
+        
+        if enabled:
+            print(self.message_manager.get_message("react_agent", "streaming_enabled"))
+        else:
+            print(self.message_manager.get_message("react_agent", "streaming_disabled"))
+    
+    @property
+    def enable_streaming(self) -> bool:
+        """Get current streaming status."""
+        return self.llm_client.enable_streaming
+    
+    @enable_streaming.setter
+    def enable_streaming(self, value: bool) -> None:
+        """Set streaming status."""
+        self.set_streaming_enabled(value) 
