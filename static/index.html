@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HWAgent - AI Technical Assistant</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/9.1.2/marked.min.js"></script>
+</head>
+<body>
+    <div class="app-container">
+        <!-- Header -->
+        <header class="app-header">
+            <div class="header-content">
+                <div class="logo">
+                    <i class="fas fa-robot"></i>
+                    <h1>HWAgent</h1>
+                </div>
+                <div class="status-indicator" id="connectionStatus">
+                    <span class="status-dot offline"></span>
+                    <span class="status-text">Connecting...</span>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Sidebar -->
+            <aside class="sidebar">
+                <div class="sidebar-section">
+                    <h3><i class="fas fa-cog"></i> Settings</h3>
+                    <div class="setting-item">
+                        <label>
+                            <input type="checkbox" id="streamingToggle" checked>
+                            <span class="checkmark"></span>
+                            Streaming Mode
+                        </label>
+                    </div>
+                    <div class="setting-item">
+                        <label>
+                            <input type="checkbox" id="autoScrollToggle" checked>
+                            <span class="checkmark"></span>
+                            Auto Scroll
+                        </label>
+                    </div>
+                </div>
+
+                <div class="sidebar-section">
+                    <h3><i class="fas fa-tools"></i> Tools Available</h3>
+                    <div id="toolsList" class="tools-list">
+                        <div class="loading-tools">Loading tools...</div>
+                    </div>
+                </div>
+
+                <div class="sidebar-section">
+                    <h3><i class="fas fa-info-circle"></i> Session Info</h3>
+                    <div id="sessionInfo" class="session-info">
+                        <div class="info-item">
+                            <span class="label">Session ID:</span>
+                            <span class="value" id="sessionId">-</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="label">Messages:</span>
+                            <span class="value" id="messageCount">0</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="label">Status:</span>
+                            <span class="value" id="sessionStatus">Ready</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="sidebar-section">
+                    <h3><i class="fas fa-trash"></i> Actions</h3>
+                    <button class="action-btn clear-btn" id="clearContextBtn">
+                        <i class="fas fa-eraser"></i>
+                        Clear Context
+                    </button>
+                    <button class="action-btn export-btn" id="exportChatBtn">
+                        <i class="fas fa-download"></i>
+                        Export Chat
+                    </button>
+                </div>
+            </aside>
+
+            <!-- Chat Area -->
+            <div class="chat-container">
+                <div class="chat-messages" id="chatMessages">
+                    <div class="welcome-message">
+                        <div class="welcome-content">
+                            <i class="fas fa-rocket"></i>
+                            <h2>Welcome to HWAgent!</h2>
+                            <p>I'm your AI technical assistant. I can help you with:</p>
+                            <ul>
+                                <li>Mathematical calculations and computations</li>
+                                <li>Code writing and debugging</li>
+                                <li>Data analysis and processing</li>
+                                <li>File operations and management</li>
+                                <li>Web research and information gathering</li>
+                                <li>Complex problem solving</li>
+                            </ul>
+                            <p>Just type your question or task below!</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="typing-indicator" id="typingIndicator">
+                    <div class="typing-dots">
+                        <span></span>
+                        <span></span>
+                        <span></span>
+                    </div>
+                    <span class="typing-text">Agent is thinking...</span>
+                </div>
+
+                <div class="chat-input-container">
+                    <div class="chat-input-wrapper">
+                        <textarea 
+                            id="messageInput" 
+                            placeholder="Type your message here... (Shift+Enter for new line)"
+                            rows="1"
+                        ></textarea>
+                        <div class="input-actions">
+                            <button id="sendButton" class="send-btn" title="Send message">
+                                <i class="fas fa-paper-plane"></i>
+                            </button>
+                            <button id="attachButton" class="attach-btn" title="Coming soon">
+                                <i class="fas fa-paperclip"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="input-help">
+                        Press <kbd>Ctrl+Enter</kbd> to send • <kbd>Shift+Enter</kbd> for new line
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <!-- Loading Overlay -->
+        <div class="loading-overlay" id="loadingOverlay">
+            <div class="loading-spinner">
+                <i class="fas fa-robot fa-spin"></i>
+                <p>Initializing HWAgent...</p>
+            </div>
+        </div>
+
+        <!-- Error Modal -->
+        <div class="modal-overlay" id="errorModal">
+            <div class="modal">
+                <div class="modal-header">
+                    <h3><i class="fas fa-exclamation-triangle"></i> Error</h3>
+                    <button class="modal-close" id="errorModalClose">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <p id="errorMessage">An error occurred.</p>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" id="errorModalOk">OK</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/app.js"></script>
+</body>
+</html> 
