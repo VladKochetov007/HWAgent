@@ -15,42 +15,6 @@ HWAgent is an intelligent AI agent that can perform various tasks using tools, w
 - 🔢 **Computation Accuracy** - Avoids LLM calculation errors by using code execution
 - ✨ **Smart Task Detection** - Automatically identifies when to use scripts vs direct answers
 
-## Project Structure
-
-```
-HWAgent/
-├── hwagent/                    # Main agent package
-│   ├── core/                   # Core components
-│   │   ├── base_tool.py       # Base tool class
-│   │   ├── constants.py       # Constants and configuration
-│   │   ├── exceptions.py      # Custom exceptions
-│   │   ├── models.py          # Data models
-│   │   └── ...
-│   ├── tools/                  # Agent tools
-│   │   ├── create_file_tool.py
-│   │   ├── delete_file_tool.py
-│   │   ├── list_files_tool.py
-│   │   ├── read_file_tool.py
-│   │   ├── execute_code_tool.py
-│   │   └── web_search_tool.py
-│   ├── config/                 # Configuration files
-│   │   ├── api.yaml           # API configuration
-│   │   └── prompts.yaml       # Agent prompts
-│   ├── main.py                # Command-line interface
-│   ├── react_agent.py         # ReAct agent implementation
-│   ├── tool_manager.py        # Tool management system
-│   ├── web_server.py          # Web server with WebSocket support
-│   └── config_loader.py       # Configuration loader
-├── frontend/                   # Web interface
-│   ├── index.html             # Main HTML page
-│   ├── script.js              # JavaScript functionality
-│   ├── style.css              # Styling
-│   └── images/                # Images and assets
-├── run_hwagent.py             # Command-line runner
-├── run_web_server.py          # Web server runner
-└── README.md                  # This file
-```
-
 ## Available Tools
 
 1. **create_file** - Create new files with specified content
