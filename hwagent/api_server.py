@@ -638,7 +638,7 @@ def get_tools():
 
 
 # Filesystem API for tmp directory
-TMP_DIR_PATH = Path(__file__).parent / 'tmp'
+TMP_DIR_PATH = Path(__file__).parent.parent / 'tmp'
 TMP_DIR_PATH.mkdir(exist_ok=True) # Ensure tmp directory exists
 
 @app.route('/api/fs/tmp/list', methods=['GET'])

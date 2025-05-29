@@ -208,6 +208,8 @@ tech_solver:
     
   user_prompt: |
     {{task}}. Generate LaTeX document and python script to verify the solution if needed.
+    If there are many tasks, solve each task one by one step by step.
+    When it is done and verified, show the results.
 
 # Add configuration section
 config:

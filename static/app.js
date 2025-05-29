@@ -92,9 +92,17 @@ class HWAgentApp {
             tmpRefreshBtn: document.getElementById('tmpRefreshBtn'),
             tmpClosePreviewBtn: document.getElementById('closePreviewBtn'),
             tmpFilePreview: document.getElementById('tmpFilePreview'),
+            tmpPreviewFileName: document.getElementById('previewFileName'),
+            tmpPreviewFileContent: document.getElementById('previewFileContent'),
             
             // Tools
-            toolsList: document.getElementById('toolsList')
+            toolsList: document.getElementById('toolsList'),
+            
+            // File Preview Panel
+            filePreview: document.getElementById('filePreview'),
+            previewFileName: document.getElementById('previewFileName'),
+            previewFileContent: document.getElementById('previewFileContent'),
+            closePreviewBtn: document.getElementById('closePreviewBtn')
         };
     }
     
@@ -145,6 +153,9 @@ class HWAgentApp {
         if (this.elements.tmpUpBtn) {
             this.elements.tmpUpBtn.addEventListener('click', () => this.navigateTmpUp());
         }
+        if (this.elements.tmpRefreshBtn) {
+            this.elements.tmpRefreshBtn.addEventListener('click', () => this.loadTmpFiles(this.currentTmpPath));
+        }
         if (this.elements.tmpClosePreviewBtn) {
             this.elements.tmpClosePreviewBtn.addEventListener('click', () => this.closeTmpFilePreview());
         }
@@ -157,6 +168,9 @@ class HWAgentApp {
         
         // Setup sidebar toggle functionality
         this.setupSidebarToggle();
+
+        // File preview panel
+        this.elements.closePreviewBtn.addEventListener('click', () => this.closeFilePreview());
     }
     
     /**
@@ -245,6 +259,7 @@ class HWAgentApp {
             this.addMessage('assistant', data.response);
             this.currentMessage = null;
             this.updateSessionStatus('Ready');
+            this.setSendButtonLoading(false);
             this.messageCount++;
             this.updateSessionInfo();
         });
@@ -254,6 +269,7 @@ class HWAgentApp {
             this.hideTypingIndicator();
             this.showError(data.message || 'Unknown error occurred');
             this.updateSessionStatus('Error');
+            this.setSendButtonLoading(false);
         });
         
         this.socket.on('context_cleared', (data) => {
@@ -295,6 +311,9 @@ class HWAgentApp {
             this.showError('Application is still initializing. Please wait...');
             return;
         }
+
+        // Disable send button and show loading state
+        this.setSendButtonLoading(true);
         
         // Add user message to chat
         this.addMessage('user', message);
@@ -313,14 +332,39 @@ class HWAgentApp {
     }
     
     /**
+     * Set send button loading state
+     */
+    setSendButtonLoading(isLoading) {
+        const sendButton = this.elements.sendButton;
+        const messageInput = this.elements.messageInput;
+        
+        if (isLoading) {
+            sendButton.disabled = true;
+            sendButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+            sendButton.classList.add('loading');
+            messageInput.disabled = true;
+            messageInput.placeholder = 'Waiting for response...';
+            messageInput.classList.add('loading');
+        } else {
+            sendButton.disabled = false;
+            sendButton.innerHTML = '<i class="fas fa-paper-plane"></i>';
+            sendButton.classList.remove('loading');
+            messageInput.disabled = false;
+            messageInput.placeholder = 'Type your message here... (Shift+Enter for new line)';
+            messageInput.classList.remove('loading');
+        }
+    }
+    
+    /**
      * Send non-streaming message via REST API
      */
     async sendNonStreamingMessage(message) {
         if (!this.sessionId) {
             this.showError('No active session. Please refresh the page.');
+            this.setSendButtonLoading(false);
             return;
         }
-        
+
         try {
             this.showTypingIndicator();
             this.updateSessionStatus('Processing...');
@@ -332,12 +376,12 @@ class HWAgentApp {
                 },
                 body: JSON.stringify({ message })
             });
-            
+
             if (!response.ok) {
                 const errorData = await response.json().catch(() => ({}));
                 throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`);
             }
-            
+
             const data = await response.json();
             this.addMessage('assistant', data.response);
             
@@ -347,6 +391,7 @@ class HWAgentApp {
         } finally {
             this.hideTypingIndicator();
             this.updateSessionStatus('Ready');
+            this.setSendButtonLoading(false);
         }
     }
     
@@ -380,6 +425,12 @@ class HWAgentApp {
         
         contentElement.appendChild(textElement);
         contentElement.appendChild(timeElement);
+        
+        // Add file attachments menu for assistant messages
+        if (sender === 'assistant') {
+            this.addFileAttachmentsMenu(contentElement);
+        }
+        
         messageElement.appendChild(avatarElement);
         messageElement.appendChild(contentElement);
         
@@ -813,54 +864,42 @@ class HWAgentApp {
     }
 
     async viewTmpFile(filePath) {
-        if (!this.elements.tmpFilePreview || !this.elements.tmpPreviewFileName || !this.elements.tmpPreviewFileContent) return;
-        this.elements.tmpPreviewFileName.textContent = 'Loading...';
-        this.elements.tmpPreviewFileContent.innerHTML = ''; // Clear previous content
-        this.elements.tmpFilePreview.classList.add('active');
-
         try {
             const response = await fetch(`/api/fs/tmp/get?path=${encodeURIComponent(filePath)}`);
             if (!response.ok) {
-                let errorText = `Failed to get file: ${response.status}`;
-                try {
-                    const errorData = await response.json();
-                    errorText = errorData.error || errorText;
-                } catch (e) { /* Ignore if response is not JSON */ }
-                throw new Error(errorText);
+                throw new Error(`HTTP error! status: ${response.status}`);
             }
 
-            const contentType = response.headers.get('content-type');
-            const fileName = filePath.split('/').pop();
-            this.elements.tmpPreviewFileName.textContent = fileName;
-
-            if (contentType && (contentType.startsWith('text/') || contentType.includes('json') || contentType.includes('javascript'))) {
-                const textContent = await response.text();
-                this.elements.tmpPreviewFileContent.textContent = textContent;
+            const content = await response.text();
+            
+            // Update preview panel
+            this.elements.previewFileName.textContent = filePath;
+            
+            // Handle different file types
+            const fileExtension = filePath.split('.').pop().toLowerCase();
+            
+            if (['pdf', 'png', 'jpg', 'jpeg', 'gif', 'svg'].includes(fileExtension)) {
+                // For binary files, show a link to open in new tab
+                this.elements.previewFileContent.innerHTML = `
+                    <div style="text-align: center; padding: 2rem;">
+                        <i class="fas fa-file-${fileExtension === 'pdf' ? 'pdf' : 'image'}" style="font-size: 3rem; color: var(--primary-color); margin-bottom: 1rem;"></i>
+                        <p>This is a binary file. Click the link below to view it:</p>
+                        <a href="/api/fs/tmp/get?path=${encodeURIComponent(filePath)}" target="_blank" class="btn" style="display: inline-block; margin-top: 1rem;">
+                            <i class="fas fa-external-link-alt"></i> Open in new tab
+                        </a>
+                    </div>
+                `;
             } else {
-                // For non-text files, provide a download/open link
-                const openLink = document.createElement('a');
-                openLink.href = `/api/fs/tmp/get?path=${encodeURIComponent(filePath)}`;
-                openLink.textContent = `Open '${fileName}' in new tab`;
-                openLink.target = '_blank';
-                openLink.style.display = 'block';
-                openLink.style.padding = '1rem';
-                openLink.style.textAlign = 'center';
-                this.elements.tmpPreviewFileContent.appendChild(openLink);
-                if (contentType && contentType.startsWith('image/')){
-                    const imgPreview = document.createElement('img');
-                    imgPreview.src = `/api/fs/tmp/get?path=${encodeURIComponent(filePath)}`;
-                    imgPreview.style.maxWidth = '100%';
-                    imgPreview.style.maxHeight = '150px';
-                    imgPreview.style.display = 'block';
-                    imgPreview.style.margin = '0.5rem auto';
-                    this.elements.tmpPreviewFileContent.appendChild(imgPreview);
-                }
+                // For text files, show content with syntax highlighting
+                this.elements.previewFileContent.textContent = content;
             }
+            
+            // Show the preview panel
+            this.elements.filePreview.classList.add('active');
+            
         } catch (error) {
-            console.error('Error viewing TMP file:', error);
-            this.elements.tmpPreviewFileName.textContent = 'Error';
-            this.elements.tmpPreviewFileContent.textContent = error.message;
-            this.showError(`Failed to view file: ${error.message}`);
+            console.error('Error viewing file:', error);
+            this.showError(`Error viewing file: ${error.message}`);
         }
     }
 
@@ -890,10 +929,7 @@ class HWAgentApp {
     }
 
     closeTmpFilePreview() {
-        if (!this.elements.tmpFilePreview) return;
-        this.elements.tmpFilePreview.classList.remove('active');
-        this.elements.tmpPreviewFileName.textContent = '';
-        this.elements.tmpPreviewFileContent.textContent = '';
+        this.elements.filePreview.classList.remove('active');
     }
 
     /**
@@ -1191,6 +1227,171 @@ class HWAgentApp {
                 this.updateLayoutPositions(60);
             }
         }
+    }
+
+    /**
+     * Add file attachments menu to a message
+     */
+    async addFileAttachmentsMenu(contentElement) {
+        try {
+            // Fetch files from tmp directory
+            const response = await fetch('/api/fs/tmp/list?path=');
+            if (!response.ok) {
+                return; // Silently fail if can't get files
+            }
+            
+            const data = await response.json();
+            const files = data.files || [];
+            
+            // Get current time and set threshold for recent files (2 minutes ago)
+            const now = new Date();
+            const thresholdMinutes = 2;
+            const threshold = new Date(now.getTime() - thresholdMinutes * 60 * 1000);
+            
+            // Filter for relevant file types and recent files only
+            const relevantFiles = files.filter(file => {
+                if (file.is_dir) return false;
+                
+                // Show PDF, TEX, and PY files (final results and source code) - exclude task.txt files
+                const isRelevantFile = (
+                    (file.name.endsWith('.pdf') || 
+                     file.name.endsWith('.tex') || 
+                     file.name.endsWith('.py')) && 
+                    !file.name.includes('task') &&
+                    !file.name.includes('new_task')
+                );
+                
+                if (!isRelevantFile) return false;
+                
+                // Check if file was created recently
+                const fileModified = new Date(file.modified);
+                return fileModified >= threshold;
+            });
+            
+            if (relevantFiles.length === 0) {
+                return; // No relevant recent files to show
+            }
+            
+            // Create file attachments container
+            const attachmentsContainer = document.createElement('div');
+            attachmentsContainer.className = 'file-attachments';
+            
+            const attachmentsHeader = document.createElement('div');
+            attachmentsHeader.className = 'file-attachments-header';
+            attachmentsHeader.innerHTML = '<i class="fas fa-paperclip"></i> Response Files (PDF/TEX/PY)';
+            
+            const filesList = document.createElement('div');
+            filesList.className = 'file-attachments-list';
+            
+            // Sort files by modification time (newest first)
+            relevantFiles.sort((a, b) => new Date(b.modified) - new Date(a.modified));
+            
+            // Create file items
+            relevantFiles.forEach(file => {
+                const fileItem = document.createElement('div');
+                fileItem.className = 'file-attachment-item';
+                
+                const fileIcon = this.getFileIcon(file.name);
+                const fileName = file.name;
+                const fileSize = file.size ? this.formatFileSize(file.size) : '';
+                
+                fileItem.innerHTML = `
+                    <div class="file-attachment-info">
+                        <i class="fas ${fileIcon}"></i>
+                        <span class="file-name">${fileName}</span>
+                        <span class="file-size">${fileSize}</span>
+                    </div>
+                    <div class="file-attachment-actions">
+                        <button class="file-action-btn view-btn" title="View file">
+                            <i class="fas fa-eye"></i>
+                        </button>
+                        <button class="file-action-btn download-btn" title="Download file">
+                            <i class="fas fa-download"></i>
+                        </button>
+                    </div>
+                `;
+                
+                // Add event listeners
+                const viewBtn = fileItem.querySelector('.view-btn');
+                const downloadBtn = fileItem.querySelector('.download-btn');
+                
+                viewBtn.addEventListener('click', () => this.viewTmpFile(fileName));
+                downloadBtn.addEventListener('click', () => this.downloadFile(fileName));
+                
+                filesList.appendChild(fileItem);
+            });
+            
+            attachmentsContainer.appendChild(attachmentsHeader);
+            attachmentsContainer.appendChild(filesList);
+            
+            // Add to message content
+            contentElement.appendChild(attachmentsContainer);
+            
+        } catch (error) {
+            console.error('Error adding file attachments menu:', error);
+            // Silently fail - don't show error to user
+        }
+    }
+
+    /**
+     * Get appropriate icon for file type
+     */
+    getFileIcon(fileName) {
+        const extension = fileName.split('.').pop().toLowerCase();
+        switch (extension) {
+            case 'pdf':
+                return 'fa-file-pdf';
+            case 'py':
+                return 'fa-file-code';
+            case 'txt':
+            case 'log':
+                return 'fa-file-alt';
+            case 'tex':
+                return 'fa-file-signature';
+            case 'md':
+                return 'fa-file-alt';
+            case 'json':
+            case 'yaml':
+            case 'yml':
+                return 'fa-file-code';
+            case 'aux':
+            case 'out':
+                return 'fa-file';
+            case 'png':
+            case 'jpg':
+            case 'jpeg':
+                return 'fa-file-image';
+            default:
+                return 'fa-file';
+        }
+    }
+
+    /**
+     * Format file size for display
+     */
+    formatFileSize(bytes) {
+        if (bytes === 0) return '0 B';
+        const k = 1024;
+        const sizes = ['B', 'KB', 'MB', 'GB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+    }
+
+    /**
+     * Download file from tmp directory
+     */
+    downloadFile(fileName) {
+        const link = document.createElement('a');
+        link.href = `/api/fs/tmp/get?path=${encodeURIComponent(fileName)}`;
+        link.download = fileName;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    }
+
+    // New method for closing file preview
+    closeFilePreview() {
+        this.closeTmpFilePreview();
     }
 }
 
