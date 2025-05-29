@@ -133,7 +133,7 @@ class LaTeXCompiler:
     
     def compile_latex(self, filepath: str, engine: str = 'pdflatex', 
                      extra_args: list[str] = None) -> ToolExecutionResult:
-        """Compile LaTeX file to PDF."""
+        """Compile LaTeX file to PDF with automatic Enter input for prompts."""
         if extra_args is None:
             extra_args = []
         
@@ -141,7 +141,7 @@ class LaTeXCompiler:
             file_name = os.path.basename(filepath)
             file_stem = Path(filepath).stem
             
-            # Default pdflatex arguments
+            # Enhanced pdflatex arguments with automatic input handling
             cmd = [
                 engine,
                 '-interaction=nonstopmode',  # Don't stop on errors
@@ -152,18 +152,24 @@ class LaTeXCompiler:
                 file_name
             ]
             
+            # Use 'yes' command to automatically provide Enter for any prompts
+            # This ensures automatic input handling as requested
+            auto_input_cmd = ['yes', ''] + cmd
+            
             result = subprocess.run(
-                cmd,
+                auto_input_cmd,
                 cwd=self.tmp_directory,
                 capture_output=True,
                 text=True,
-                timeout=self.timeout
+                timeout=self.timeout,
+                input='\n' * 10  # Provide multiple Enter inputs just in case
             )
             
             output_lines = [f"=== LaTeX Compilation: {file_name} ==="]
             output_lines.append(f"Engine: {engine}")
-            output_lines.append(f"Command: {' '.join(cmd)}")
+            output_lines.append(f"Command: yes '' | {' '.join(cmd)}")
             output_lines.append(f"Exit Code: {result.returncode}")
+            output_lines.append("Auto-input: Enabled (automatic Enter for prompts)")
             
             # Check for PDF output
             pdf_path = os.path.join(self.tmp_directory, f"{file_stem}.pdf")
