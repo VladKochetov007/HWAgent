@@ -1,0 +1,70 @@
+\documentclass[12pt,a4paper]{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage[russian,english]{babel}
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{geometry}
+\usepackage{hyperref}
+\usepackage{graphicx}
+\usepackage{xcolor}
+\usepackage{listings}
+\usepackage{algorithm}
+\usepackage{algorithmic}
+
+\geometry{a4paper, margin=1in}
+
+% Code styling
+\definecolor{codegray}{rgb}{0.5,0.5,0.5}
+\definecolor{codepurple}{rgb}{0.58,0,0.82}
+\definecolor{backcolour}{rgb}{0.95,0.95,0.92}
+
+\lstdefinestyle{mystyle}{
+    backgroundcolor=\color{backcolour},   
+    commentstyle=\color{codegray},
+    keywordstyle=\color{blue},
+    numberstyle=\tiny\color{codegray},
+    stringstyle=\color{codepurple},
+    basicstyle=\ttfamily\footnotesize,
+    breakatwhitespace=false,         
+    breaklines=true,                 
+    captionpos=b,                    
+    keepspaces=true,                 
+    numbers=left,                    
+    numbersep=5pt,                  
+    showspaces=false,                
+    showstringspaces=false,
+    showtabs=false,                  
+    tabsize=2
+}
+
+\lstset{style=mystyle}
+
+
+\title{Вычисление Интеграла}
+\author{AI Technical Assistant}
+\date{\today}
+
+\begin{document}
+\maketitle
+\tableofcontents
+\newpage
+
+\section{Постановка задачи}
+Требуется вычислить интеграл \(\int (x^2 + 1) dx\)
+
+\section{Методология}
+Используем правило степени для интегрирования
+
+\section{Пошаговое решение}
+\[\int (x^2 + 1) dx = \int x^2 dx + \int 1 dx = \frac{x^3}{3} + x + C\]
+
+\section{Вычислительная проверка}
+Проверка с помощью Python и sympy
+
+\section{Анализ результатов}
+Результат соответствует аналитическому решению
+
+\section{Заключение}
+Интеграл успешно вычислен
+
+\end{document}

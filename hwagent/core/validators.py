@@ -107,6 +107,41 @@ class ParameterValidator:
         return ToolExecutionResult.success(f"Parameter '{param_name}' is valid")
     
     @staticmethod
+    def validate_multiline_string(value: Any, param_name: str, required: bool = True) -> ToolExecutionResult:
+        """Validate that parameter is a string (can be multiline)."""
+        if value is None:
+            if required:
+                return ToolExecutionResult.error(f"Parameter '{param_name}' is required")
+            else:
+                return ToolExecutionResult.success(f"Parameter '{param_name}' is None (valid)")
+        
+        if not isinstance(value, str):
+            return ToolExecutionResult.error(
+                f"Parameter '{param_name}' must be a string",
+                f"Got: {type(value).__name__}"
+            )
+        
+        if required and not value.strip():
+            return ToolExecutionResult.error(f"Parameter '{param_name}' cannot be empty")
+        
+        # Normalize line endings for multiline strings
+        normalized_value = value.replace('\r\n', '\n').replace('\r', '\n')
+        
+        return ToolExecutionResult.success(f"Parameter '{param_name}' is valid (multiline supported)")
+    
+    @staticmethod
+    def normalize_multiline_parameter(value: str) -> str:
+        """Normalize multiline parameter by standardizing line endings."""
+        if not isinstance(value, str):
+            return value
+        
+        # Normalize line endings: \r\n and \r -> \n
+        normalized = value.replace('\r\n', '\n').replace('\r', '\n')
+        
+        # Strip leading/trailing whitespace but preserve internal formatting
+        return normalized.strip()
+    
+    @staticmethod
     def validate_optional_string(value: Any, param_name: str) -> ToolExecutionResult:
         """Validate that parameter is a string or None."""
         if value is None:

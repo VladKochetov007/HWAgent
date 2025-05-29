@@ -12,6 +12,10 @@ flask-cors>=4.0.0
 requests>=2.31.0
 urllib3>=2.0.0
 
+# LaTeX and document processing
+# Note: You need to install LaTeX distribution separately (TeX Live, MiKTeX, etc.)
+# This tool requires pdflatex, xelatex, or lualatex to be available in PATH
+
 # Development dependencies (optional)
 # pytest>=7.0.0
 # black>=23.0.0

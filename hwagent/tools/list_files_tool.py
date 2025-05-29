@@ -22,10 +22,14 @@ class ListFilesTool(BaseTool):
     @property
     def parameters_schema(self) -> dict[str, Any]:
         return {
-            "path": {
-                "type": "string",
-                "description": "Optional subdirectory path within temporary directory (default: root)"
-            }
+            "type": "object",
+            "properties": {
+                "path": {
+                    "type": "string",
+                    "description": "Optional subdirectory path within temporary directory (default: root). Can be multiline for complex paths."
+                }
+            },
+            "required": []
         }
     
     def validate_parameters(self, parameters: dict[str, Any]) -> ToolExecutionResult:

@@ -52,12 +52,7 @@ class CodeExecutor:
             
             return status(
                 f"executed Python file: {file_name}",
-                "\n".join(output_lines),
-                data={
-                    "exit_code": result.returncode,
-                    "stdout": result.stdout,
-                    "stderr": result.stderr
-                }
+                "\n".join(output_lines)
             )
             
         except subprocess.TimeoutExpired:
@@ -137,13 +132,7 @@ class CodeExecutor:
                 
                 return status(
                     f"executed {language} file: {os.path.basename(filepath)}",
-                    "\n".join(output_lines),
-                    data={
-                        "compile_exit_code": compile_result.returncode,
-                        "run_exit_code": run_result.returncode,
-                        "stdout": run_result.stdout,
-                        "stderr": run_result.stderr
-                    }
+                    "\n".join(output_lines)
                 )
                 
             finally:
@@ -203,15 +192,19 @@ class ExecuteCodeTool(FileOperationTool):
     @property
     def parameters_schema(self) -> dict[str, Any]:
         return {
-            "filepath": {
-                "type": "string",
-                "description": "Relative path to the code file within temporary directory"
+            "type": "object",
+            "properties": {
+                "filepath": {
+                    "type": "string",
+                    "description": "Relative path to the code file within temporary directory. Can be multiline for complex paths."
+                },
+                "language": {
+                    "type": "string",
+                    "description": f"Programming language: {Constants.LANGUAGE_PYTHON}, {Constants.LANGUAGE_CPP}, {Constants.LANGUAGE_C}, or {Constants.LANGUAGE_AUTO} to auto-detect. Can be multiline.",
+                    "default": Constants.LANGUAGE_AUTO
+                }
             },
-            "language": {
-                "type": "string",
-                "description": f"Programming language: {Constants.LANGUAGE_PYTHON}, {Constants.LANGUAGE_CPP}, {Constants.LANGUAGE_C}, or {Constants.LANGUAGE_AUTO} to auto-detect",
-                "default": Constants.LANGUAGE_AUTO
-            }
+            "required": ["filepath"]
         }
     
     def validate_parameters(self, parameters: dict[str, Any]) -> ToolExecutionResult:

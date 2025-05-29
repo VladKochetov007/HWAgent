@@ -148,25 +148,29 @@ class WebSearchTool(BaseTool):
     @property
     def parameters_schema(self) -> dict[str, Any]:
         return {
-            "query": {
-                "type": "string",
-                "description": "The search query to find information about"
+            "type": "object",
+            "properties": {
+                "query": {
+                    "type": "string",
+                    "description": "The search query to find information about. Supports multiline queries for complex searches."
+                },
+                "count": {
+                    "type": "integer",
+                    "description": f"Number of search results to return (1-{Constants.MAX_SEARCH_COUNT}, default: {Constants.DEFAULT_SEARCH_COUNT})",
+                    "default": Constants.DEFAULT_SEARCH_COUNT
+                },
+                "freshness": {
+                    "type": "string",
+                    "description": f"Time range for search results. Options: {Constants.FRESHNESS_ONE_DAY}, {Constants.FRESHNESS_ONE_WEEK}, {Constants.FRESHNESS_ONE_MONTH}, {Constants.FRESHNESS_ONE_YEAR}, {Constants.FRESHNESS_NO_LIMIT} (default). Can be multiline.",
+                    "default": Constants.FRESHNESS_NO_LIMIT
+                },
+                "summary": {
+                    "type": "boolean",
+                    "description": "Whether to include detailed summaries in results (default: true)",
+                    "default": True
+                }
             },
-            "count": {
-                "type": "integer",
-                "description": f"Number of search results to return (1-{Constants.MAX_SEARCH_COUNT}, default: {Constants.DEFAULT_SEARCH_COUNT})",
-                "default": Constants.DEFAULT_SEARCH_COUNT
-            },
-            "freshness": {
-                "type": "string",
-                "description": f"Time range for search results. Options: {Constants.FRESHNESS_ONE_DAY}, {Constants.FRESHNESS_ONE_WEEK}, {Constants.FRESHNESS_ONE_MONTH}, {Constants.FRESHNESS_ONE_YEAR}, {Constants.FRESHNESS_NO_LIMIT} (default)",
-                "default": Constants.FRESHNESS_NO_LIMIT
-            },
-            "summary": {
-                "type": "boolean",
-                "description": "Whether to include detailed summaries in results (default: true)",
-                "default": True
-            }
+            "required": ["query"]
         }
     
     def validate_parameters(self, parameters: dict[str, Any]) -> ToolExecutionResult:

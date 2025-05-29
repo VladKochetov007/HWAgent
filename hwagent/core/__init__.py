@@ -14,6 +14,7 @@ from hwagent.core.response_parser import ResponseParser
 from hwagent.core.conversation_manager import ConversationManager as ConversationManagerImpl
 from hwagent.core.tool_executor import ToolExecutor
 from hwagent.core.llm_client import LLMClient, AssistantMessageWrapper
+from hwagent.core.agent_config import AgentConfig, get_agent_config, reload_agent_config
 
 __all__ = [
     'Constants',
@@ -24,5 +25,7 @@ __all__ = [
     'BaseTool', 'FileOperationTool',
     # New refactored components
     'MessageManager', 'StreamingHandlerImpl', 'ResponseParser', 'ConversationManagerImpl',
-    'ToolExecutor', 'LLMClient', 'AssistantMessageWrapper'
+    'ToolExecutor', 'LLMClient', 'AssistantMessageWrapper',
+    # Agent configuration
+    'AgentConfig', 'get_agent_config', 'reload_agent_config'
 ] 

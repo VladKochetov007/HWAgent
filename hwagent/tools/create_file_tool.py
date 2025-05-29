@@ -21,14 +21,18 @@ class CreateFileTool(FileOperationTool):
     @property
     def parameters_schema(self) -> dict[str, Any]:
         return {
-            "filepath": {
-                "type": "string",
-                "description": "Relative path for the new file within temporary directory"
+            "type": "object",
+            "properties": {
+                "filepath": {
+                    "type": "string",
+                    "description": "Relative path for the new file within temporary directory. Can be multiline for complex paths."
+                },
+                "content": {
+                    "type": "string", 
+                    "description": "Content to write to the file. Supports multiline content with proper formatting."
+                }
             },
-            "content": {
-                "type": "string", 
-                "description": "Content to write to the file"
-            }
+            "required": ["filepath", "content"]
         }
     
     def validate_parameters(self, parameters: dict[str, Any]) -> ToolExecutionResult:

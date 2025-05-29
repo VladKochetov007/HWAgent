@@ -73,19 +73,38 @@ class BaseTool(ABC):
         Execute tool with validation.
         Template method implementing the execution flow.
         """
-        # Step 1: Validate parameters
-        validation_result = self.validate_parameters(kwargs)
+        # Step 1: Normalize multiline parameters
+        normalized_kwargs = self._normalize_multiline_parameters(kwargs)
+        
+        # Step 2: Validate parameters
+        validation_result = self.validate_parameters(normalized_kwargs)
         if validation_result.is_error():
             return validation_result
         
-        # Step 2: Execute tool-specific logic
+        # Step 3: Execute tool-specific logic
         try:
-            return self._execute_impl(**kwargs)
+            return self._execute_impl(**normalized_kwargs)
         except Exception as e:
             return ToolExecutionResult.error(
                 f"Tool execution failed: {self.name}",
                 str(e)
             )
+    
+    def _normalize_multiline_parameters(self, parameters: dict[str, Any]) -> dict[str, Any]:
+        """Normalize multiline string parameters."""
+        normalized = {}
+        for key, value in parameters.items():
+            if isinstance(value, str):
+                normalized[key] = ParameterValidator.normalize_multiline_parameter(value)
+            elif isinstance(value, list):
+                # Handle lists of strings (like extra_args)
+                normalized[key] = [
+                    ParameterValidator.normalize_multiline_parameter(item) if isinstance(item, str) else item
+                    for item in value
+                ]
+            else:
+                normalized[key] = value
+        return normalized
     
     @abstractmethod
     def _execute_impl(self, **kwargs) -> ToolExecutionResult:

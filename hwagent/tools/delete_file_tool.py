@@ -22,10 +22,14 @@ class DeleteFileTool(FileOperationTool):
     @property
     def parameters_schema(self) -> dict[str, Any]:
         return {
-            "filepath": {
-                "type": "string",
-                "description": "Relative path to the file to delete within temporary directory"
-            }
+            "type": "object",
+            "properties": {
+                "filepath": {
+                    "type": "string",
+                    "description": "Relative path to the file within temporary directory to delete. Can be multiline for complex paths."
+                }
+            },
+            "required": ["filepath"]
         }
     
     def _execute_impl(self, **kwargs) -> ToolExecutionResult:

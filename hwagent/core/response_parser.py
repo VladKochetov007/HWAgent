@@ -8,6 +8,7 @@ import re
 from typing import Any
 from hwagent.core.models import ParsedLLMResponse
 from hwagent.core.message_manager import MessageManager
+from hwagent.core.agent_config import get_agent_config
 
 
 class ResponseParser:
@@ -32,19 +33,41 @@ class ResponseParser:
         Returns:
             ParsedLLMResponse object with extracted components
         """
+        agent_config = get_agent_config()
+        debug_enabled = agent_config.is_debug_enabled()
+        verbose_parsing = agent_config.is_verbose_parsing_enabled()
+        
+        if debug_enabled and verbose_parsing:
+            print(f"[DEBUG] ResponseParser: Parsing LLM response of length {len(response_text)}")
+            print(f"[DEBUG] ResponseParser: Response preview: {repr(response_text[:200])}")
+        
         parsed = ParsedLLMResponse(raw_text=response_text)
         
         # Parse each component
         parsed.thought = self._extract_thought(response_text)
+        if debug_enabled and verbose_parsing:
+            print(f"[DEBUG] ResponseParser: Extracted thought: {repr(parsed.thought[:100] if parsed.thought else None)}")
+        
         parsed.plan = self._extract_plan(response_text)
+        if debug_enabled and verbose_parsing:
+            print(f"[DEBUG] ResponseParser: Extracted plan: {parsed.plan}")
         
         # Parse tool call and final answer (mutually exclusive)
         tool_call_parsed = self._extract_tool_call(response_text, parsed)
+        if debug_enabled and verbose_parsing:
+            print(f"[DEBUG] ResponseParser: Tool call parsed: {tool_call_parsed}")
+            if tool_call_parsed:
+                print(f"[DEBUG] ResponseParser: Tool name: {parsed.tool_call_name}, params: {parsed.tool_call_params}")
         
         if not tool_call_parsed:
             parsed.final_answer = self._extract_final_answer(response_text, parsed)
+            if debug_enabled and verbose_parsing:
+                print(f"[DEBUG] ResponseParser: Final answer: {repr(parsed.final_answer[:100] if parsed.final_answer else None)}")
         else:
             parsed.final_answer = None  # Ensure no final answer if tool call was parsed
+        
+        if debug_enabled and verbose_parsing:
+            print(f"[DEBUG] ResponseParser: Parsing complete. Has tool call: {parsed.has_tool_call()}, Has final answer: {parsed.has_final_answer()}")
         
         return parsed
     

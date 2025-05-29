@@ -21,10 +21,14 @@ class ReadFileTool(FileOperationTool):
     @property
     def parameters_schema(self) -> dict[str, Any]:
         return {
-            "filepath": {
-                "type": "string",
-                "description": "Relative path to the file within temporary directory"
-            }
+            "type": "object",
+            "properties": {
+                "filepath": {
+                    "type": "string",
+                    "description": "Relative path to the file within temporary directory. Can be multiline for complex paths."
+                }
+            },
+            "required": ["filepath"]
         }
     
     def _execute_impl(self, **kwargs) -> ToolExecutionResult:

@@ -1,0 +1,48 @@
+# Agent behavior configuration
+react_agent:
+  # Iteration limits
+  max_iterations: 25
+  max_empty_responses: 25  # Maximum consecutive empty responses before termination
+  max_total_empty_responses: 25  # Maximum total empty responses in session
+  max_consecutive_errors: 5  # Maximum consecutive errors before termination
+  
+  # Response timeout settings
+  response_timeout: 60  # seconds
+  tool_execution_timeout: 120  # seconds
+  
+  # Smart completion settings
+  smart_completion:
+    enabled: true
+    early_completion_threshold: 0.8  # Complete early if 80% confident
+    iteration_warning_threshold: 0.8  # Warn when 80% of iterations used
+    show_remaining_iterations: true  # Show remaining iterations to agent
+  
+  # Debug settings
+  debug:
+    enabled: true  # Enable debug logging
+    verbose_parsing: false  # Reduced verbosity for production
+    verbose_iteration: true  # Keep iteration logs for monitoring
+    log_tool_calls: true  # Log tool call details
+    log_empty_responses: true  # Log empty response details
+  
+  # System messages (all in English)
+  messages:
+    max_iterations_reached: "I apologize, but I've reached my maximum iteration limit while working on your request. Could you please provide a simpler or more specific request? Alternatively, I can try again if you give me another chance."
+    too_many_empty_responses: "I'm having difficulty providing a meaningful response. Could you please rephrase your request more specifically? I'd be happy to try again with clearer instructions."
+    too_many_total_empty_responses: "I apologize for the repeated empty responses. This suggests the task might be too complex for my current context. Would you like me to start fresh with a clearer, more specific request?"
+    too_many_consecutive_errors: "I'm encountering repeated errors while processing your request. Could you please check if there are any system issues, or would you like me to try a different approach?"
+    context_cleared: "Context has been cleared successfully. I'm ready for a fresh start!"
+    streaming_enabled: "Streaming responses enabled."
+    streaming_disabled: "Streaming responses disabled."
+    iteration_warning: "I'm using {current_iteration} out of {max_iterations} available iterations. I'll try to complete your request efficiently."
+    final_attempt_warning: "This is my final attempt (iteration {current_iteration}/{max_iterations}). I'll do my best to complete your request successfully."
+    polite_completion_request: "I apologize, but I've exhausted my available iterations. Would you be willing to give me another chance with a fresh start? I'll approach your request more efficiently next time."
+
+# Early termination settings
+early_termination:
+  enabled: true
+  # Conditions for early termination
+  conditions:
+    consecutive_empty_limit: 25
+    total_empty_limit: 25
+    consecutive_error_limit: 5 

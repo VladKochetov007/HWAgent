@@ -9,7 +9,8 @@ from openai import OpenAI
 from hwagent.tool_manager import ToolManager
 from hwagent.core import (
     MessageManager, StreamingHandlerImpl, ResponseParser, 
-    ConversationManagerImpl, ToolExecutor, LLMClient, Constants
+    ConversationManagerImpl, ToolExecutor, LLMClient, Constants, 
+    AgentConfig, get_agent_config
 )
 
 
@@ -27,27 +28,48 @@ class SystemPromptBuilder:
         self.tool_manager = tool_manager
         self.message_manager = message_manager
     
-    def build_system_prompt(self, base_prompt: str, agent_prompts: dict[str, Any]) -> str:
-        """
-        Build complete system prompt.
+    def build_system_prompt(self, base_system_prompt: str, agent_prompts: dict[str, str]) -> str:
+        """Build comprehensive system prompt with tools and iteration awareness."""
+        agent_config = get_agent_config()
+        max_iterations = agent_config.get_max_iterations()
         
-        Args:
-            base_prompt: Base system prompt from configuration
-            agent_prompts: Agent prompt templates
-            
-        Returns:
-            Complete system prompt string
-        """
-        tool_definitions = self.tool_manager.get_tool_definitions_for_prompt()
-        
-        # Get base addition template from agent prompts
-        base_addition_template = agent_prompts.get("base_system_prompt_addition", "")
-        
-        return f"""{base_prompt}
-{base_addition_template.format(tool_defs=tool_definitions)}
+        # Add iteration awareness to the system prompt
+        iteration_guidance = f"""
+ITERATION MANAGEMENT:
+- You have a maximum of {max_iterations} iterations to complete tasks
+- Use iterations efficiently - aim to complete tasks in minimum steps
+- If you need multiple steps, plan them carefully to stay within limits
+- Always check your work before providing final answers
+- If approaching iteration limit, prioritize the most important aspects of the task
 
-IMPORTANT: You maintain memory of our entire conversation. You can reference previous messages, files created earlier, and build upon previous work.
+EFFICIENCY GUIDELINES:
+- Combine related operations when possible
+- Verify results immediately after tool execution
+- Provide clear, complete answers to avoid follow-up questions
+- If a task seems too complex, break it into essential components only
 """
+        
+        # Build the complete system prompt
+        tools_section = f"AVAILABLE TOOLS:\n{self._format_tools_for_prompt()}\n"
+        
+        system_prompt_parts = [
+            base_system_prompt,
+            iteration_guidance,
+            tools_section
+        ]
+        
+        # Add any additional prompts
+        for key, prompt_text in agent_prompts.items():
+            if key != "base" and prompt_text:
+                system_prompt_parts.append(f"{key.upper()}:\n{prompt_text}\n")
+        
+        return "\n".join(system_prompt_parts)
+
+    def _format_tools_for_prompt(self) -> str:
+        """Format tools for display in the system prompt."""
+        tool_definitions = self.tool_manager.get_tool_definitions_for_prompt()
+        formatted_tools = "\n".join(f"- {tool}" for tool in tool_definitions)
+        return formatted_tools
 
 
 class ResponseDisplayManager:
@@ -165,22 +187,41 @@ class IterationProcessor:
     def _handle_parsed_response(self, assistant_message: Any, parsed_response: Any, 
                                conversation_manager: ConversationManagerImpl) -> str | None:
         """Handle parsed response based on its type."""
+        agent_config = get_agent_config()
+        debug_enabled = agent_config.is_debug_enabled()
+        tool_call_logging = agent_config.is_tool_call_logging_enabled()
+        
+        if debug_enabled:
+            print(f"[DEBUG] IterationProcessor: Handling parsed response")
+            print(f"[DEBUG] IterationProcessor: Assistant has tool calls: {bool(assistant_message.tool_calls)}")
+            print(f"[DEBUG] IterationProcessor: Parsed has tool call: {parsed_response.has_tool_call()}")
+            print(f"[DEBUG] IterationProcessor: Parsed has final answer: {parsed_response.has_final_answer()}")
+            print(f"[DEBUG] IterationProcessor: Assistant content length: {len(assistant_message.content) if assistant_message.content else 0}")
+        
         # API tool calls have priority
         if assistant_message.tool_calls:
+            if debug_enabled and tool_call_logging:
+                print(f"[DEBUG] IterationProcessor: Executing API tool calls")
             self.tool_executor.execute_api_tool_calls(assistant_message.tool_calls, conversation_manager)
             return None
         
         # Text-based tool call (warning case) - provide corrective feedback
         elif parsed_response.has_tool_call():
+            if debug_enabled and tool_call_logging:
+                print(f"[DEBUG] IterationProcessor: Handling malformed tool call: {parsed_response.tool_call_name}")
             self._handle_malformed_tool_call(parsed_response, conversation_manager)
             return None
         
         # Final answer
         elif parsed_response.has_final_answer():
+            if debug_enabled:
+                print(f"[DEBUG] IterationProcessor: Returning final answer")
             return parsed_response.final_answer
         
         # No clear action - handle accordingly
         else:
+            if debug_enabled:
+                print(f"[DEBUG] IterationProcessor: No clear action, handling no action response")
             return self._handle_no_action_response(assistant_message.content, conversation_manager)
     
     def _handle_malformed_tool_call(self, parsed_response: Any, conversation_manager: ConversationManagerImpl) -> None:
@@ -197,27 +238,47 @@ class IterationProcessor:
     
     def _handle_no_action_response(self, content: str, conversation_manager: ConversationManagerImpl) -> str | None:
         """Handle response with no clear action."""
+        agent_config = get_agent_config()
+        debug_enabled = agent_config.is_debug_enabled()
+        empty_response_logging = agent_config.is_empty_response_logging_enabled()
+        
+        if debug_enabled and empty_response_logging:
+            print(f"[DEBUG] IterationProcessor: _handle_no_action_response called")
+            print(f"[DEBUG] IterationProcessor: Content: {repr(content)}")
+            print(f"[DEBUG] IterationProcessor: Content stripped: {repr(content.strip()) if content else 'None'}")
+        
         if content.strip():
+            if debug_enabled and empty_response_logging:
+                print(f"[DEBUG] IterationProcessor: Content is not empty, checking for repetitive question")
+            
             # Check if this looks like a repetitive question or request for same information
             if self._is_repetitive_question(content, conversation_manager):
+                if debug_enabled and empty_response_logging:
+                    print(f"[DEBUG] IterationProcessor: Detected repetitive question, handling")
                 # Try to make intelligent assumptions based on context
                 return self._handle_repetitive_request(content, conversation_manager)
             
             # Check if this looks like a direct answer to the user's question
             # If the content seems to be answering the question directly, treat it as final answer
             if self._is_likely_final_answer(content):
+                if debug_enabled and empty_response_logging:
+                    print(f"[DEBUG] IterationProcessor: Content looks like final answer")
                 return content.strip()
             else:
                 # LLM provided text but no action
+                if debug_enabled and empty_response_logging:
+                    print(f"[DEBUG] IterationProcessor: LLM provided text but no action")
                 print(self.display_manager.message_manager.get_message("react_agent", "bot_text_but_no_action_note"))
                 return None
         else:
-            # Empty response
+            # Empty response - add system note but don't terminate
+            if debug_enabled and empty_response_logging:
+                print(f"[DEBUG] IterationProcessor: Empty response detected")
             empty_msg = self.display_manager.message_manager.get_message("react_agent", "model_empty_response_note")
             system_note = self.display_manager.message_manager.get_message("react_agent", "model_empty_response_system_note")
             print(empty_msg)
             conversation_manager.add_system_note(system_note)
-            return ""  # Return empty string to indicate empty response
+            return None  # Return None to continue iterations instead of terminating
     
     def _is_repetitive_question(self, content: str, conversation_manager: ConversationManagerImpl) -> bool:
         """Check if the agent is asking the same question repeatedly."""
@@ -457,6 +518,63 @@ class ReActAgent:
             self.llm_client, self.response_parser, self.tool_executor, self.display_manager
         )
     
+    def _is_high_confidence_result(self, result: str) -> bool:
+        """Check if result indicates high confidence completion."""
+        if not result or len(result.strip()) < 10:
+            return False
+        
+        # High confidence indicators
+        confidence_indicators = [
+            "successfully", "completed", "created", "generated", "compiled",
+            "executed", "finished", "done", "ready", "available"
+        ]
+        
+        # Check for completion phrases
+        completion_phrases = [
+            "task completed", "file created", "script executed", "compilation successful",
+            "pdf generated", "graph plotted", "document ready"
+        ]
+        
+        result_lower = result.lower()
+        
+        # Check for confidence indicators
+        confidence_score = sum(1 for indicator in confidence_indicators if indicator in result_lower)
+        
+        # Check for completion phrases (higher weight)
+        completion_score = sum(2 for phrase in completion_phrases if phrase in result_lower)
+        
+        # High confidence if we have multiple indicators or completion phrases
+        total_score = confidence_score + completion_score
+        return total_score >= 3
+    
+    def _enhance_final_answer_with_files(self, final_answer: str) -> str:
+        """
+        Enhance final answer with information about created files.
+        
+        Args:
+            final_answer: Original final answer from agent
+            
+        Returns:
+            Enhanced final answer with file information
+        """
+        try:
+            # Get list of files from tool manager - this returns a string, not a ToolExecutionResult
+            list_result_str = self.tool_manager.execute_tool('list_files', {})
+            
+            # Parse the result string to check if it contains file information
+            if not list_result_str.startswith("Error:") and "items" in list_result_str:
+                # Try to extract file information from the string result
+                # This is a simplified approach - we could use regex or JSON parsing
+                # For now, just add a simple file count enhancement
+                files_section = f"\n\n**📁 Файлы в рабочей директории:**\nВыполните команду list_files для просмотра созданных файлов."
+                return final_answer + files_section
+                
+        except Exception as e:
+            # Don't fail if file listing fails - just return original answer
+            print(f"Warning: Could not enhance answer with file info: {e}")
+        
+        return final_answer
+
     def process_user_request(self, user_input: str) -> str:
         """
         Process user request through ReAct loop.
@@ -473,17 +591,48 @@ class ReActAgent:
         # Get tools for API
         tools_for_api = self.tool_manager.get_tools_for_api()
         
+        # Get configuration settings
+        agent_config = get_agent_config()
+        
         # Process iterations with early termination logic
         consecutive_empty_responses = 0
         consecutive_errors = 0
-        max_empty_responses = 3  # Allow up to 3 consecutive empty responses before terminating
-        max_consecutive_errors = 5  # Allow up to 5 consecutive errors before terminating
+        total_empty_responses = 0
+        max_empty_responses = agent_config.get_max_empty_responses()
+        max_consecutive_errors = agent_config.get_max_consecutive_errors()
+        max_total_empty_responses = agent_config.get_max_total_empty_responses()
+        max_iterations = agent_config.get_max_iterations()
         
-        for iteration in range(1, Constants.MAX_REACT_ITERATIONS + 1):
+        for iteration in range(1, max_iterations + 1):
+            agent_config = get_agent_config()
+            debug_enabled = agent_config.is_debug_enabled()
+            verbose_iteration = agent_config.is_verbose_iteration_enabled()
+            
+            # Smart completion checks
+            warning_threshold = int(max_iterations * agent_config.get_iteration_warning_threshold())
+            is_final_attempt = (iteration == max_iterations)
+            should_warn = (iteration >= warning_threshold)
+            
+            if debug_enabled and verbose_iteration:
+                print(f"[DEBUG] ReActAgent: Starting iteration {iteration}/{max_iterations}")
+                print(f"[DEBUG] ReActAgent: consecutive_empty={consecutive_empty_responses}, total_empty={total_empty_responses}, consecutive_errors={consecutive_errors}")
+            
+            # Add iteration awareness to conversation if enabled
+            if agent_config.should_show_remaining_iterations():
+                if is_final_attempt:
+                    warning_msg = agent_config.get_final_attempt_warning(iteration, max_iterations)
+                    self.conversation_manager.add_system_note(warning_msg)
+                elif should_warn:
+                    warning_msg = agent_config.get_iteration_warning_message(iteration, max_iterations)
+                    self.conversation_manager.add_system_note(warning_msg)
+            
             try:
                 result = self.iteration_processor.process_iteration(
                     iteration, self.conversation_manager, tools_for_api
                 )
+                
+                if debug_enabled and verbose_iteration:
+                    print(f"[DEBUG] ReActAgent: Iteration {iteration} result: {repr(result[:100] if result else 'None')}")
                 
                 # Reset error counter on successful iteration
                 consecutive_errors = 0
@@ -491,18 +640,54 @@ class ReActAgent:
                 if result is not None:
                     # Check if result is an actual answer or error message
                     if result.strip():
-                        return result
+                        if debug_enabled and verbose_iteration:
+                            print(f"[DEBUG] ReActAgent: Got non-empty result, checking confidence")
+                        
+                        # Always return non-empty results with enhancement
+                        enhanced_result = self._enhance_final_answer_with_files(result)
+                        
+                        # Check for high confidence early completion
+                        if agent_config.is_smart_completion_enabled() and self._is_high_confidence_result(result):
+                            if debug_enabled and verbose_iteration:
+                                print(f"[DEBUG] ReActAgent: High confidence result detected, completing early")
+                        elif iteration < max_iterations:
+                            if debug_enabled and verbose_iteration:
+                                print(f"[DEBUG] ReActAgent: Moderate confidence, but returning result anyway")
+                        else:
+                            if debug_enabled and verbose_iteration:
+                                print(f"[DEBUG] ReActAgent: Final iteration, returning result")
+                        
+                        return enhanced_result
                     else:
+                        if debug_enabled and verbose_iteration:
+                            print(f"[DEBUG] ReActAgent: Got empty result, incrementing counters")
                         consecutive_empty_responses += 1
+                        total_empty_responses += 1
                 else:
-                    consecutive_empty_responses = 0  # Reset counter on successful tool execution
+                    if debug_enabled and verbose_iteration:
+                        print(f"[DEBUG] ReActAgent: Got None result, incrementing counters")
+                    # Reset consecutive counter but continue tracking total
+                    consecutive_empty_responses += 1
+                    total_empty_responses += 1
                 
-                # Early termination if too many consecutive empty responses
-                if consecutive_empty_responses >= max_empty_responses:
-                    early_term_msg = self.message_manager.get_message("react_agent", "early_termination_message")
-                    print(early_term_msg)
-                    self.conversation_manager.add_system_note(early_term_msg)
-                    return early_term_msg
+                # Check termination conditions
+                if consecutive_empty_responses >= agent_config.get_max_empty_responses():
+                    empty_term_msg = agent_config.get_message("too_many_empty_responses")
+                    print(empty_term_msg)
+                    self.conversation_manager.add_system_note(empty_term_msg)
+                    return empty_term_msg
+                
+                if total_empty_responses >= agent_config.get_max_total_empty_responses():
+                    total_empty_msg = agent_config.get_message("too_many_total_empty_responses")
+                    print(total_empty_msg)
+                    self.conversation_manager.add_system_note(total_empty_msg)
+                    return total_empty_msg
+                
+                if consecutive_errors >= agent_config.get_max_consecutive_errors():
+                    error_term_msg = agent_config.get_message("too_many_consecutive_errors")
+                    print(error_term_msg)
+                    self.conversation_manager.add_system_note(error_term_msg)
+                    return error_term_msg
                     
             except Exception as e:
                 consecutive_errors += 1
@@ -511,33 +696,34 @@ class ReActAgent:
                 error_msg = f"Error in iteration {iteration}: {str(e)}"
                 print(error_msg)
                 
-                # Add helpful feedback for common errors
-                if "function response parts" in str(e).lower():
-                    recovery_msg = self.message_manager.get_message("react_agent", "function_parts_error_recovery")
-                    self.conversation_manager.add_system_note(recovery_msg)
-                    print(recovery_msg)
-                elif "tool_call" in str(e).lower():
-                    tool_error_msg = self.message_manager.get_message("react_agent", "tool_call_error_recovery")
-                    self.conversation_manager.add_system_note(tool_error_msg)
-                    print(tool_error_msg)
+                # Only add recovery messages for the first few errors to avoid spam
+                if consecutive_errors <= 2:
+                    if "function response parts" in str(e).lower():
+                        recovery_msg = self.message_manager.get_message("react_agent", "function_parts_error_recovery")
+                        self.conversation_manager.add_system_note(recovery_msg)
+                        print(recovery_msg)
+                    elif "tool_call" in str(e).lower():
+                        tool_error_msg = self.message_manager.get_message("react_agent", "tool_call_error_recovery")
+                        self.conversation_manager.add_system_note(tool_error_msg)
+                        print(tool_error_msg)
                 
                 # Early termination if too many consecutive errors
                 if consecutive_errors >= max_consecutive_errors:
-                    error_term_msg = self.message_manager.get_message("react_agent", "error_termination_message")
+                    error_term_msg = agent_config.get_message("too_many_consecutive_errors")
                     print(error_term_msg)
-                    self.conversation_manager.add_system_note(error_term_msg)
                     return error_term_msg
         
-        # Max iterations reached
-        max_iter_msg = self.message_manager.get_message("react_agent", "max_iterations_reached_message")
-        print(max_iter_msg)
-        self.conversation_manager.add_system_note(max_iter_msg)
-        return max_iter_msg
+        # If we've exhausted all iterations without a satisfactory result
+        if agent_config.is_smart_completion_enabled():
+            return agent_config.get_polite_completion_request()
+        else:
+            return agent_config.get_message("max_iterations_reached")
     
     def clear_context(self) -> None:
         """Clear conversation context but keep system prompt."""
         self.conversation_manager.clear_conversation()
-        print(self.message_manager.get_message("react_agent", "context_cleared"))
+        agent_config = get_agent_config()
+        print(agent_config.get_message("context_cleared"))
     
     def get_context_summary(self) -> str:
         """Get summary of current conversation context."""
@@ -547,10 +733,11 @@ class ReActAgent:
         """Enable or disable streaming responses."""
         self.llm_client.toggle_streaming(enabled)
         
+        agent_config = get_agent_config()
         if enabled:
-            print(self.message_manager.get_message("react_agent", "streaming_enabled"))
+            print(agent_config.get_message("streaming_enabled"))
         else:
-            print(self.message_manager.get_message("react_agent", "streaming_disabled"))
+            print(agent_config.get_message("streaming_disabled"))
     
     @property
     def enable_streaming(self) -> bool:

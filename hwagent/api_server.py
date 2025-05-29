@@ -12,7 +12,7 @@ import logging
 import uuid
 from typing import Any, Dict, List, Optional
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, UTC
 import threading
 import queue
 import time
@@ -88,6 +88,16 @@ class StreamingReActAgent(ReActAgent):
             except Exception as e:
                 logger.error(f"Failed to emit event {event}: {e}")
     
+    def emit_thought_stream(self, thought_type: str, content: str, metadata: dict = None):
+        """Emit thought stream event with type and content."""
+        data = {
+            'type': thought_type,
+            'content': content,
+            'timestamp': datetime.now(UTC).isoformat(),
+            'metadata': metadata or {}
+        }
+        self.emit_event('thought_stream', data)
+    
     def start_streaming_response(self, user_input: str) -> str:
         """Start processing user request with streaming support."""
         self.is_streaming = True
@@ -108,16 +118,32 @@ class StreamingReActAgent(ReActAgent):
         """Process user request in background thread with streaming."""
         try:
             self.emit_event('stream_start', {'message': 'Processing your request...'})
+            self.emit_thought_stream('system', 'Начинаю обработку запроса...', {'user_input': user_input})
             
-            # Use parent's process_user_request but override streaming behavior
+            # Override the iteration processor to add streaming
+            original_processor = self.iteration_processor
+            self.iteration_processor = StreamingIterationProcessor(
+                llm_client=self.iteration_processor.llm_client,
+                response_parser=self.iteration_processor.response_parser,
+                tool_executor=self.iteration_processor.tool_executor,
+                display_manager=self.iteration_processor.display_manager,
+                agent=self
+            )
+            
+            # Use parent's process_user_request but with streaming processor
             response = self.process_user_request(user_input)
             
+            # Restore original processor
+            self.iteration_processor = original_processor
+            
             self.current_response = response
+            self.emit_thought_stream('final_answer', response)
             self.emit_event('stream_complete', {'response': response})
             
         except Exception as e:
             error_msg = f"Error processing request: {str(e)}"
             logger.error(error_msg)
+            self.emit_thought_stream('error', error_msg)
             self.emit_event('error', {'message': error_msg})
             self.current_response = error_msg
         finally:
@@ -130,6 +156,116 @@ class StreamingReActAgent(ReActAgent):
             return self.current_response
         else:
             return "Request timed out"
+
+
+class StreamingIterationProcessor:
+    """Extended IterationProcessor with streaming capabilities."""
+    
+    def __init__(self, llm_client, response_parser, tool_executor, display_manager, agent):
+        self.llm_client = llm_client
+        self.response_parser = response_parser
+        self.tool_executor = tool_executor
+        self.display_manager = display_manager
+        self.agent = agent  # Reference to streaming agent
+    
+    def process_iteration(self, iteration: int, conversation_manager, tools_for_api) -> str | None:
+        """Process a single iteration with streaming updates."""
+        self.agent.emit_thought_stream('iteration_start', f'Итерация {iteration}', {'iteration': iteration})
+        
+        try:
+            # Get LLM response
+            self.agent.emit_thought_stream('system', 'Отправляю запрос к LLM...')
+            assistant_content, assistant_message = self.llm_client.get_llm_response(
+                conversation_manager.get_conversation_history(),
+                tools_for_api
+            )
+            
+            # Add to conversation
+            conversation_manager.add_assistant_message(assistant_message)
+            
+            # Parse response
+            parsed_response = self.response_parser.parse_llm_response(assistant_content)
+            
+            # Stream parsed components
+            if parsed_response.thought:
+                self.agent.emit_thought_stream('thought', parsed_response.thought)
+            
+            if parsed_response.plan:
+                plan_text = "\n".join([f"{i+1}. {step}" for i, step in enumerate(parsed_response.plan)])
+                self.agent.emit_thought_stream('plan', plan_text, {'steps': parsed_response.plan})
+            
+            if parsed_response.final_answer:
+                self.agent.emit_thought_stream('final_answer', parsed_response.final_answer)
+            
+            # Handle response based on type
+            return self._handle_parsed_response(
+                assistant_message, parsed_response, conversation_manager
+            )
+            
+        except Exception as e:
+            return self._handle_iteration_error(e, conversation_manager)
+    
+    def _handle_parsed_response(self, assistant_message, parsed_response, conversation_manager) -> str | None:
+        """Handle parsed response with streaming updates."""
+        # API tool calls have priority
+        if assistant_message.tool_calls:
+            self.agent.emit_thought_stream('tool_execution', 'Выполняю инструменты...', 
+                                         {'tool_calls': [tc.function.name for tc in assistant_message.tool_calls]})
+            self.tool_executor.execute_api_tool_calls(assistant_message.tool_calls, conversation_manager)
+            return None
+        
+        # Text-based tool call (warning case)
+        elif parsed_response.has_tool_call():
+            self.agent.emit_thought_stream('warning', f'Некорректный вызов инструмента: {parsed_response.tool_call_name}')
+            self._handle_malformed_tool_call(parsed_response, conversation_manager)
+            return None
+        
+        # Final answer
+        elif parsed_response.has_final_answer():
+            return parsed_response.final_answer
+        
+        # No clear action
+        else:
+            self.agent.emit_thought_stream('warning', 'Нет четкого действия в ответе')
+            return self._handle_no_action_response(assistant_message.content, conversation_manager)
+    
+    def _handle_malformed_tool_call(self, parsed_response, conversation_manager) -> None:
+        """Handle malformed tool calls."""
+        from hwagent.core import MessageManager
+        message_manager = MessageManager()
+        tool_name = parsed_response.tool_call_name
+        
+        corrective_feedback = message_manager.format_message(
+            "react_agent", "malformed_tool_call_feedback",
+            tool_name=tool_name
+        )
+        conversation_manager.add_system_note(corrective_feedback)
+    
+    def _handle_no_action_response(self, content: str, conversation_manager) -> str | None:
+        """Handle response with no clear action."""
+        if content.strip():
+            from hwagent.core import MessageManager
+            message_manager = MessageManager()
+            note = message_manager.get_message("react_agent", "bot_text_but_no_action_note")
+            conversation_manager.add_system_note(note)
+            return None
+        else:
+            from hwagent.core import MessageManager
+            message_manager = MessageManager()
+            note = message_manager.get_message("react_agent", "model_empty_response_system_note")
+            conversation_manager.add_system_note(note)
+            return None
+    
+    def _handle_iteration_error(self, error: Exception, conversation_manager) -> str:
+        """Handle iteration errors."""
+        from hwagent.core import MessageManager
+        message_manager = MessageManager()
+        error_msg = message_manager.format_message(
+            "react_agent", "agent_processing_error", error=str(error)
+        )
+        self.agent.emit_thought_stream('error', f'Ошибка в итерации: {str(error)}')
+        conversation_manager.add_system_note(error_msg)
+        return f"An error occurred during processing: {str(error)}"
 
 
 def initialize_global_agent() -> Optional[StreamingReActAgent]:
@@ -158,10 +294,10 @@ def initialize_global_agent() -> Optional[StreamingReActAgent]:
             raise ValueError("OPENROUTER_API_KEY environment variable not set")
         
         # Get prompts
-        base_system_prompt = prompts_config.get("tech_solver", {}).get(
+        base_system_prompt = prompts_config.get("minimal_test", {}).get(
             "system_prompt", "You are a helpful AI assistant."
         )
-        agent_react_prompts = prompts_config.get("agent_messages", {}).get("react_agent", {})
+        agent_react_prompts = {}  # Simplified - no additional prompts for now
         
         # Initialize components
         client = OpenAI(base_url=base_url, api_key=api_key)
@@ -266,7 +402,7 @@ def health_check():
     """Health check endpoint."""
     return jsonify({
         'status': 'healthy',
-        'timestamp': datetime.utcnow().isoformat(),
+        'timestamp': datetime.now(UTC).isoformat(),
         'version': '1.0.0',
         'active_sessions': len(active_sessions),
         'agents_loaded': len(agents)
@@ -287,8 +423,8 @@ def create_session():
         
         # Create session record
         active_sessions[session_id] = {
-            'created_at': datetime.utcnow().isoformat(),
-            'last_activity': datetime.utcnow().isoformat(),
+            'created_at': datetime.now(UTC).isoformat(),
+            'last_activity': datetime.now(UTC).isoformat(),
             'message_count': 0
         }
         
@@ -353,12 +489,12 @@ def send_message(session_id: str):
         response = agent.process_user_request(user_message)
         
         # Update session activity
-        active_sessions[session_id]['last_activity'] = datetime.utcnow().isoformat()
+        active_sessions[session_id]['last_activity'] = datetime.now(UTC).isoformat()
         active_sessions[session_id]['message_count'] += 1
         
         return jsonify({
             'response': response,
-            'timestamp': datetime.utcnow().isoformat(),
+            'timestamp': datetime.now(UTC).isoformat(),
             'session_id': session_id
         })
         
@@ -396,7 +532,7 @@ def stream_message(session_id: str):
             yield f"data: {json.dumps({'type': 'complete', 'response': response})}\n\n"
             
             # Update session
-            active_sessions[session_id]['last_activity'] = datetime.utcnow().isoformat()
+            active_sessions[session_id]['last_activity'] = datetime.now(UTC).isoformat()
             active_sessions[session_id]['message_count'] += 1
             
         except Exception as e:
@@ -626,8 +762,8 @@ def handle_connect():
     # Initialize session if not exists
     if session_id not in active_sessions:
         active_sessions[session_id] = {
-            'created_at': datetime.utcnow().isoformat(),
-            'last_activity': datetime.utcnow().isoformat(),
+            'created_at': datetime.now(UTC).isoformat(),
+            'last_activity': datetime.now(UTC).isoformat(),
             'message_count': 0,
             'connection_type': 'websocket'
         }
@@ -673,12 +809,12 @@ def handle_websocket_message(data):
         # Send complete response
         emit('stream_complete', {
             'response': response,
-            'timestamp': datetime.utcnow().isoformat()
+            'timestamp': datetime.now(UTC).isoformat()
         })
         
         # Update session
         if session_id in active_sessions:
-            active_sessions[session_id]['last_activity'] = datetime.utcnow().isoformat()
+            active_sessions[session_id]['last_activity'] = datetime.now(UTC).isoformat()
             active_sessions[session_id]['message_count'] += 1
         
     except Exception as e:
