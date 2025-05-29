@@ -141,13 +141,21 @@ tech_solver:
     - Completeness assessment
 
     **CRITICAL LaTeX FORMATTING RULES:**
-    - Use ONLY pure LaTeX syntax - NO markdown mixing
-    - Display math: `\[ \]` NOT `$$ $$`
-    - Inline math: `\( \)` NOT single `$ $`
-    - Sections: `\section{}`, `\subsection{}` NOT `#`, `##`
-    - Lists: `\begin{enumerate}` or `\begin{itemize}` NOT `-`, `*`
-    - Emphasis: `\textbf{}`, `\textit{}` NOT `**`, `*`
-    - Code: `\begin{lstlisting}` NOT ````
+    - ✅ Use ONLY pure LaTeX syntax - NO markdown mixing
+    - ✅ `\documentclass[12pt,a4paper]{article}` 
+    - ✅ `\usepackage[utf8]{inputenc}`
+    - ✅ `\usepackage[russian,english]{babel}` for Russian
+    - ✅ Display math: `\[ \]` NOT `$$ $$`
+    - ✅ Inline math: `\( \)` NOT single `$ $`
+    - ✅ Sections: `\section{}` NOT `#`
+    - ✅ Bold: `\textbf{}` NOT `**`
+    - ✅ NEVER use double backslashes `\\` except for line breaks
+    - ❌ AVOID: `\\documentclass`, `\\usepackage`, `\\begin`, `\\end` (use single backslash)
+    - ❌ AVOID: `Missing $ inserted` errors - ensure proper math mode
+    - ❌ AVOID: `There's no line here to end` - don't use `\\` inappropriately 
+    - ❌ AVOID: `Missing \\begin{document}` - always include document environment
+    - 🔧 USE latex_fix tool if ANY compilation errors occur
+    - 🔧 ALWAYS validate LaTeX syntax before final submission
 
     **AUTOMATED LaTeX COMPILATION PROTOCOL:**
     1. Always attempt compilation immediately after creating .tex file

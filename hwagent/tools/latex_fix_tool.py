@@ -324,13 +324,15 @@ class LaTeXFixTool(BaseTool):
 
     def _fix_double_backslashes(self, content: str) -> str:
         """Fix double backslashes that should be single"""
-        fixes = [
+        # First, fix specific LaTeX commands that commonly have double backslashes
+        specific_fixes = [
             (r'\\\\documentclass', r'\\documentclass'),
             (r'\\\\usepackage', r'\\usepackage'),
             (r'\\\\begin\{', r'\\begin{'),
             (r'\\\\end\{', r'\\end{'),
             (r'\\\\section\{', r'\\section{'),
             (r'\\\\subsection\{', r'\\subsection{'),
+            (r'\\\\subsubsection\{', r'\\subsubsection{'),
             (r'\\\\title\{', r'\\title{'),
             (r'\\\\author\{', r'\\author{'),
             (r'\\\\date\{', r'\\date{'),
@@ -341,10 +343,38 @@ class LaTeXFixTool(BaseTool):
             (r'\\\\definecolor\{', r'\\definecolor{'),
             (r'\\\\lstdefinestyle\{', r'\\lstdefinestyle{'),
             (r'\\\\lstset\{', r'\\lstset{'),
+            (r'\\\\textbf\{', r'\\textbf{'),
+            (r'\\\\textit\{', r'\\textit{'),
+            (r'\\\\item', r'\\item'),
+            (r'\\\\centering', r'\\centering'),
+            (r'\\\\includegraphics', r'\\includegraphics'),
+            (r'\\\\caption\{', r'\\caption{'),
+            (r'\\\\label\{', r'\\label{'),
         ]
         
-        for pattern, replacement in fixes:
+        # Apply specific fixes
+        for pattern, replacement in specific_fixes:
             content = re.sub(pattern, replacement, content)
+        
+        # General fix for any LaTeX command that starts with double backslashes
+        # This catches cases we might have missed above
+        # Pattern: \\ followed by a letter, capturing the command name
+        content = re.sub(r'\\\\([a-zA-Z]+)', r'\\\\\1', content)
+        
+        # Fix double backslashes in math mode indicators
+        content = re.sub(r'\\\\\[', r'\\[', content)
+        content = re.sub(r'\\\\\]', r'\\]', content)
+        content = re.sub(r'\\\\\(', r'\\(', content)
+        content = re.sub(r'\\\\\)', r'\\)', content)
+        
+        # Fix double backslashes before special characters in LaTeX
+        content = re.sub(r'\\\\&', r'\\&', content)
+        content = re.sub(r'\\\\%', r'\\%', content)
+        content = re.sub(r'\\\\\$', r'\\$', content)
+        content = re.sub(r'\\\\#', r'\\#', content)
+        content = re.sub(r'\\\\_', r'\\_', content)
+        content = re.sub(r'\\\\\{', r'\\{', content)
+        content = re.sub(r'\\\\\}', r'\\}', content)
         
         return content
 
@@ -397,18 +427,29 @@ class LaTeXFixTool(BaseTool):
     def _fix_math_notation(self, content: str) -> str:
         """Fix mathematical notation issues"""
         
-        # Fix display math
-        content = re.sub(r'\$\$(.*?)\$\$', r'\\[\1\\]', content, flags=re.DOTALL)
+        # Fix display math - convert $$ to \[ \]
+        content = re.sub(r'(?<!\\)\$\$(.*?)\$\$', r'\\[\1\\]', content, flags=re.DOTALL)
         
-        # Fix inline math issues
-        content = re.sub(r'\\textit\{\{([^}]+)\}\}', r'\\(\1\\)', content)
+        # Fix inline math issues - ensure _ and ^ are properly escaped or in math mode
+        # Escape standalone _ and ^ that are not in math mode
+        content = re.sub(r'(?<!\\)(_)(?![a-zA-Z0-9\{])', r'\\_', content)
+        content = re.sub(r'(?<!\\)(\^)(?![a-zA-Z0-9\{])', r'\\textasciicircum{}', content)
         
         # Fix malformed math environments
         content = re.sub(r'\\\[\s*\\\\int\\textit\{\{([^}]+)\}\}', r'\\[\\int_{', content)
         content = re.sub(r'\\\]\}', r'\\]', content)
         
-        # Fix integration bounds
+        # Fix integration bounds and other math notation
         content = re.sub(r'\\int\}\{([^}]+)\}\^\{([^}]+)\}', r'\\int_{\1}^{\2}', content)
+        
+        # Fix common issues with subscripts and superscripts in text mode
+        # Convert text mode sub/superscripts to math mode
+        content = re.sub(r'(?<!\\)([a-zA-Z0-9]+)_([a-zA-Z0-9]+)', r'\\(\1_{\2}\\)', content)
+        content = re.sub(r'(?<!\\)([a-zA-Z0-9]+)\^([a-zA-Z0-9]+)', r'\\(\1^{\2}\\)', content)
+        
+        # Fix improperly escaped math characters
+        content = re.sub(r'(?<!\\)&', r'\\&', content)  # Fix unescaped ampersands
+        content = re.sub(r'(?<!\\)%', r'\\%', content)  # Fix unescaped percent signs
         
         return content
 
@@ -446,6 +487,26 @@ class LaTeXFixTool(BaseTool):
         if 'Unicode character' in content:  # Indicates encoding issues
             issues += 1
         if content.count('\\\\') > 10:  # Too many double backslashes
+            issues += 1
+        
+        # Check for patterns that commonly cause "Missing $ inserted" errors
+        if re.search(r'[_^](?!\{)', content):  # Unescaped _ or ^ outside math mode
+            issues += 1
+        
+        # Check for patterns that cause "There's no line here to end" errors
+        if re.search(r'\\\\(?![a-zA-Z]|\[|\]|\(|\))', content):  # Inappropriate \\ usage
+            issues += 1
+            
+        # Check for mixed markdown and LaTeX syntax
+        if re.search(r'^#{1,6}\s', content, re.MULTILINE):  # Markdown headers
+            issues += 1
+        if re.search(r'\*\*.*?\*\*', content):  # Markdown bold
+            issues += 1
+        if re.search(r'(?<!\\)\$\$.*?\$\$', content):  # $$ math instead of \[ \]
+            issues += 1
+            
+        # Check for malformed LaTeX commands
+        if re.search(r'\\\\[a-zA-Z]+\{', content):  # Double backslash before commands
             issues += 1
         
         return issues >= 3
@@ -507,6 +568,17 @@ class LaTeXFixTool(BaseTool):
         # Fix spacing around sections
         content = re.sub(r'\n(\\section\{)', r'\n\n\1', content)
         content = re.sub(r'\n(\\subsection\{)', r'\n\n\1', content)
+        
+        # Final pass to catch any remaining double backslashes
+        # This is more aggressive and catches any remaining issues
+        content = re.sub(r'\\\\([a-zA-Z])', r'\\\1', content)
+        
+        # Remove inappropriate line breaks (\\) that are not in proper context
+        # Keep \\ only in specific contexts like table rows or forced line breaks
+        content = re.sub(r'\\\\(?!\s*[\n\r]|\s*&|\s*\\hline)', r'', content)
+        
+        # Fix any remaining double spaces
+        content = re.sub(r'\s{2,}', r' ', content)
         
         # Ensure proper line endings
         content = content.strip() + '\n'
