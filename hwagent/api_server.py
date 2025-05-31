@@ -43,7 +43,7 @@ logger = logging.getLogger(__name__)
 
 # Create Flask app with static folder configuration
 app = Flask(__name__, static_folder='../static', static_url_path='/static')
-app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'hwagent-secret-key-2024')
+app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'hwagent-secret-key-default')
 CORS(app, origins="*")
 
 # Configure SocketIO
@@ -82,21 +82,52 @@ class StreamingReActAgent(ReActAgent):
         
     def emit_event(self, event: str, data: Any):
         """Emit event via WebSocket if session is connected."""
-        if self.session_id:
-            try:
-                socketio.emit(event, data, room=self.session_id)
-            except Exception as e:
-                logger.error(f"Failed to emit event {event}: {e}")
+        if not self.session_id:
+            return
+            
+        try:
+            # Check if session is connected
+            if (self.session_id in active_sessions and 
+                active_sessions[self.session_id].get('connected', False)):
+                
+                # Check if socketio server is available
+                if hasattr(socketio, 'server') and socketio.server:
+                    socketio.emit(event, data, room=self.session_id)
+            
+        except Exception as e:
+            # Suppress the error to prevent breaking the flow
+            logger.debug(f"Failed to emit event {event} to session {self.session_id}: {e}")
+            # Mark session as disconnected if emission fails
+            if self.session_id in active_sessions:
+                active_sessions[self.session_id]['connected'] = False
     
     def emit_thought_stream(self, thought_type: str, content: str, metadata: dict = None):
         """Emit thought stream event with type and content."""
-        data = {
-            'type': thought_type,
-            'content': content,
-            'timestamp': datetime.now(UTC).isoformat(),
-            'metadata': metadata or {}
-        }
-        self.emit_event('thought_stream', data)
+        if not self.session_id:
+            return
+            
+        try:
+            # Check if session is connected
+            if (self.session_id in active_sessions and 
+                active_sessions[self.session_id].get('connected', False)):
+                
+                data = {
+                    'type': thought_type,
+                    'content': content,
+                    'timestamp': datetime.now(UTC).isoformat(),
+                    'metadata': metadata or {}
+                }
+                
+                # Check if we can safely emit before doing so
+                if hasattr(socketio, 'server') and socketio.server:
+                    socketio.emit('thought_stream', data, room=self.session_id)
+                    
+        except Exception as e:
+            # Silently handle emission errors to prevent breaking the flow
+            logger.debug(f"Failed to emit thought stream to session {self.session_id}: {e}")
+            # Mark session as disconnected if emission fails
+            if self.session_id in active_sessions:
+                active_sessions[self.session_id]['connected'] = False
     
     def start_streaming_response(self, user_input: str) -> str:
         """Start processing user request with streaming support."""
@@ -756,19 +787,31 @@ def handle_connect():
     session_id = request.sid
     logger.info(f"WebSocket connected: {session_id}")
     
-    # Join room for this session
-    join_room(session_id)
-    
-    # Initialize session if not exists
-    if session_id not in active_sessions:
-        active_sessions[session_id] = {
-            'created_at': datetime.now(UTC).isoformat(),
-            'last_activity': datetime.now(UTC).isoformat(),
-            'message_count': 0,
-            'connection_type': 'websocket'
-        }
-    
-    emit('connected', {'session_id': session_id})
+    try:
+        # Join room for this session
+        join_room(session_id)
+        
+        # Initialize session if not exists
+        if session_id not in active_sessions:
+            active_sessions[session_id] = {
+                'created_at': datetime.now(UTC).isoformat(),
+                'last_activity': datetime.now(UTC).isoformat(),
+                'message_count': 0,
+                'connection_type': 'websocket',
+                'connected': True
+            }
+        else:
+            active_sessions[session_id]['connected'] = True
+        
+        # Small delay to ensure connection is ready
+        time.sleep(0.05)
+        
+        emit('connected', {'session_id': session_id})
+        logger.debug(f"WebSocket connection established for session: {session_id}")
+        
+    except Exception as e:
+        logger.error(f"Error in WebSocket connect handler: {e}")
+        emit('error', {'message': 'Connection failed'})
 
 
 @socketio.on('disconnect')
@@ -777,8 +820,18 @@ def handle_disconnect():
     session_id = request.sid
     logger.info(f"WebSocket disconnected: {session_id}")
     
-    # Leave room
-    leave_room(session_id)
+    try:
+        # Leave room
+        leave_room(session_id)
+        
+        # Mark session as disconnected
+        if session_id in active_sessions:
+            active_sessions[session_id]['connected'] = False
+            
+        logger.debug(f"WebSocket disconnection handled for session: {session_id}")
+        
+    except Exception as e:
+        logger.error(f"Error in WebSocket disconnect handler: {e}")
 
 
 @socketio.on('send_message')
@@ -799,6 +852,9 @@ def handle_websocket_message(data):
         return
     
     try:
+        # Give WebSocket connection time to fully establish
+        time.sleep(0.1)
+        
         # Start streaming response
         emit('stream_start', {'message': 'Processing your request...'})
         

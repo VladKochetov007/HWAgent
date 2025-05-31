@@ -17,21 +17,26 @@ from hwagent.core import (
 class SystemPromptBuilder:
     """Builds system prompts for the agent. Following SRP."""
     
-    def __init__(self, tool_manager: ToolManager, message_manager: MessageManager):
+    def __init__(self, tool_manager: ToolManager, message_manager: MessageManager, conversation_manager=None):
         """
         Initialize SystemPromptBuilder.
         
         Args:
             tool_manager: Tool manager for getting tool definitions
             message_manager: Message manager for prompt templates
+            conversation_manager: Optional conversation manager for memory context
         """
         self.tool_manager = tool_manager
         self.message_manager = message_manager
+        self.conversation_manager = conversation_manager
     
     def build_system_prompt(self, base_system_prompt: str, agent_prompts: dict[str, str]) -> str:
-        """Build comprehensive system prompt with tools and iteration awareness."""
+        """Build comprehensive system prompt with tools, iteration awareness, and memory context."""
         agent_config = get_agent_config()
         max_iterations = agent_config.get_max_iterations()
+        
+        # Get memory context if available
+        memory_context = self._get_memory_context()
         
         # Add iteration awareness to the system prompt
         iteration_guidance = f"""
@@ -48,6 +53,21 @@ EFFICIENCY GUIDELINES:
 - Provide clear, complete answers to avoid follow-up questions
 - If a task seems too complex, break it into essential components only
 """
+
+        # Add memory context section
+        memory_section = ""
+        if memory_context:
+            memory_section = f"""
+CONVERSATION MEMORY & CONTEXT:
+{memory_context}
+
+MEMORY USAGE GUIDELINES:
+- Reference previous successful solutions when facing similar tasks
+- Build upon previous work rather than starting from scratch
+- Remember user preferences and adapt your approach accordingly
+- Learn from past errors and avoid repeating them
+- Use context from previous sessions to provide continuity
+"""
         
         # Build the complete system prompt
         tools_section = f"AVAILABLE TOOLS:\n{self._format_tools_for_prompt()}\n"
@@ -55,6 +75,7 @@ EFFICIENCY GUIDELINES:
         system_prompt_parts = [
             base_system_prompt,
             iteration_guidance,
+            memory_section,
             tools_section
         ]
         
@@ -63,7 +84,60 @@ EFFICIENCY GUIDELINES:
             if key != "base" and prompt_text:
                 system_prompt_parts.append(f"{key.upper()}:\n{prompt_text}\n")
         
-        return "\n".join(system_prompt_parts)
+        return "\n".join(filter(None, system_prompt_parts))
+
+    def _get_memory_context(self) -> str:
+        """Get memory context from conversation manager."""
+        if not self.conversation_manager:
+            return ""
+        
+        try:
+            # Get enhanced context with memory
+            context_data = self.conversation_manager.get_enhanced_context_summary()
+            
+            if not context_data:
+                return ""
+            
+            context_lines = []
+            
+            # Session context
+            session_context = context_data.get('session_context', {})
+            if session_context:
+                session_summary = session_context.get('summary', '')
+                if session_summary and session_summary != 'No conversation entries found.':
+                    context_lines.append(f"📋 Current Session Summary: {session_summary}")
+                
+                # Recent tools used
+                recent_tools = session_context.get('recent_tool_usage', [])
+                if recent_tools:
+                    tools_str = ", ".join(recent_tools[:5])  # Limit to 5 recent tools
+                    context_lines.append(f"🔧 Recently Used Tools: {tools_str}")
+            
+            # Historical context
+            historical_context = context_data.get('historical_context', {})
+            if historical_context:
+                frequent_patterns = historical_context.get('frequent_patterns', [])
+                if frequent_patterns:
+                    patterns_str = "; ".join(frequent_patterns[:3])  # Limit to 3 patterns
+                    context_lines.append(f"🔄 Frequent Patterns: {patterns_str}")
+                
+                successful_approaches = historical_context.get('successful_approaches', [])
+                if successful_approaches:
+                    approaches_str = "; ".join(successful_approaches[:3])  # Limit to 3 approaches
+                    context_lines.append(f"✅ Previous Successful Approaches: {approaches_str}")
+            
+            # Insights
+            insights = context_data.get('insights', [])
+            if insights:
+                insights_str = "; ".join(insights[:2])  # Limit to 2 insights
+                context_lines.append(f"💡 Key Insights: {insights_str}")
+            
+            return "\n".join(context_lines) if context_lines else ""
+            
+        except Exception as e:
+            # Don't fail if memory context retrieval fails
+            print(f"Warning: Could not retrieve memory context: {e}")
+            return ""
 
     def _format_tools_for_prompt(self) -> str:
         """Format tools for display in the system prompt."""
@@ -506,8 +580,8 @@ class ReActAgent:
         self.tool_executor = ToolExecutor(tool_manager, self.message_manager)
         self.display_manager = ResponseDisplayManager(self.message_manager)
         
-        # Build system prompt
-        self.system_prompt_builder = SystemPromptBuilder(tool_manager, self.message_manager)
+        # Build system prompt with memory context
+        self.system_prompt_builder = SystemPromptBuilder(tool_manager, self.message_manager, self.conversation_manager)
         system_prompt = self.system_prompt_builder.build_system_prompt(base_system_prompt, agent_prompts)
         
         # Initialize conversation

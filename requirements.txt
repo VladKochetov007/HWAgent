@@ -11,6 +11,7 @@ flask-cors>=4.0.0
 # Additional dependencies
 requests>=2.31.0
 urllib3>=2.0.0
+beautifulsoup4>=4.12.0
 
 # LaTeX and document processing
 # Note: You need to install LaTeX distribution separately (TeX Live, MiKTeX, etc.)

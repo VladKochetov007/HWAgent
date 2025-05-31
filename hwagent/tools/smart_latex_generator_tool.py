@@ -22,40 +22,50 @@ class SmartLaTeXGenerator(BaseTool):
     
     @property
     def description(self) -> str:
-        return "Generate properly formatted LaTeX documents with intelligent content placement and error prevention."
+        return "Smart LaTeX document generator with basic universal setup. LLM customizes language, content, and formatting as needed."
     
     @property
     def parameters_schema(self) -> dict[str, Any]:
         return {
-            "type": "object",
-            "properties": {
-                "filepath": {
-                    "type": "string",
-                    "description": "Output file path for the LaTeX document"
+            "name": "smart_latex_generator",
+            "description": "Generates LaTeX documents with smart formatting and language support. Automatically handles document structure, mathematical notation, and language-specific requirements.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "filepath": {
+                        "type": "string",
+                        "description": "The file path for the LaTeX document"
+                    },
+                    "title": {
+                        "type": "string",
+                        "description": "The title of the document"
+                    },
+                    "content_sections": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "section_type": {"type": "string"},
+                                "content": {"type": "string"}
+                            },
+                            "required": ["section_type", "content"]
+                        },
+                        "description": "List of content sections with type and content"
+                    },
+                    "task_type": {
+                        "type": "string",
+                        "enum": ["math", "programming", "analysis", "general"],
+                        "default": "math",
+                        "description": "Type of academic task"
+                    },
+                    "language": {
+                        "type": "string",
+                        "description": "Document language (any language supported by babel, e.g., 'english', 'russian', 'german', 'french', 'spanish', 'chinese', 'japanese', etc.)",
+                        "default": "english"
+                    }
                 },
-                "title": {
-                    "type": "string",
-                    "description": "Document title"
-                },
-                "content_sections": {
-                    "type": "object",
-                    "description": "Dictionary with section names and content",
-                    "additionalProperties": {"type": "string"}
-                },
-                "task_type": {
-                    "type": "string",
-                    "description": "Type of document",
-                    "enum": ["math", "programming", "analysis", "general"],
-                    "default": "math"
-                },
-                "language": {
-                    "type": "string",
-                    "description": "Document language",
-                    "enum": ["russian", "english"],
-                    "default": "russian"
-                }
-            },
-            "required": ["filepath", "title", "content_sections"]
+                "required": ["filepath", "title", "content_sections"]
+            }
         }
     
     def _execute_impl(self, **kwargs) -> ToolExecutionResult:
@@ -64,7 +74,7 @@ class SmartLaTeXGenerator(BaseTool):
         title = kwargs["title"]
         content_sections = kwargs["content_sections"]
         task_type = kwargs.get("task_type", "math")
-        language = kwargs.get("language", "russian")
+        language = kwargs.get("language", "english")
         
         try:
             # Generate the LaTeX document
@@ -108,13 +118,12 @@ class SmartLaTeXGenerator(BaseTool):
         return f"{preamble}\n\n{header}\n\n\\begin{{document}}\n\\maketitle\n\\tableofcontents\n\\newpage\n\n{body}\n\n\\end{{document}}\n"
     
     def _get_preamble(self, task_type: str, language: str) -> str:
-        """Get appropriate document preamble based on task type"""
+        """Get appropriate document preamble - universal approach"""
         
         # Base packages
         base_packages = [
             "\\usepackage[utf8]{inputenc}",
-            "\\usepackage[T2A]{fontenc}" if language == "russian" else "",
-            "\\usepackage[russian,english]{babel}" if language == "russian" else "\\usepackage[english]{babel}",
+            "\\usepackage[T1]{fontenc}",  # Universal for most European languages
             "\\usepackage{amsmath,amssymb,amsfonts}",
             "\\usepackage{geometry}",
             "\\usepackage{hyperref}",
@@ -122,8 +131,9 @@ class SmartLaTeXGenerator(BaseTool):
             "\\usepackage{xcolor}"
         ]
         
-        # Filter out empty strings
-        base_packages = [pkg for pkg in base_packages if pkg]
+        # Language support (LLM can specify specific language and additional packages)
+        if language and language.lower() not in ['none', 'english']:
+            base_packages.append(f"\\usepackage[{language.lower()}]{{babel}}")
         
         # Task-specific packages
         if task_type in ["math", "programming"]:
@@ -132,10 +142,6 @@ class SmartLaTeXGenerator(BaseTool):
                 "\\usepackage{algorithm}",
                 "\\usepackage{algorithmic}"
             ])
-        
-        # Remove minted package as it requires shell-escape
-        # if task_type == "programming":
-        #     base_packages.append("\\usepackage{minted}")
         
         if task_type == "analysis":
             base_packages.extend([
@@ -233,56 +239,32 @@ class SmartLaTeXGenerator(BaseTool):
         return "\n\n".join(body_parts)
     
     def _get_section_titles(self, language: str) -> Dict[str, str]:
-        """Get section titles in appropriate language"""
+        """Get section titles - LLM can translate these as needed"""
         
-        if language == "russian":
-            return {
-                "problem_statement": "Постановка задачи",
-                "methodology": "Методология", 
-                "solution_steps": "Пошаговое решение",
-                "computational_verification": "Вычислительная проверка",
-                "analysis": "Анализ результатов",
-                "conclusion": "Заключение",
-                "problem_description": "Описание задачи",
-                "algorithm_design": "Дизайн алгоритма",
-                "implementation": "Реализация",
-                "testing": "Тестирование",
-                "performance_analysis": "Анализ производительности",
-                "conclusions": "Выводы",
-                "research_question": "Исследовательский вопрос",
-                "data_analysis": "Анализ данных",
-                "findings": "Результаты",
-                "statistical_analysis": "Статистический анализ",
-                "conclusions_recommendations": "Выводы и рекомендации",
-                "task_definition": "Определение задачи",
-                "solution": "Решение",
-                "verification_testing": "Проверка и тестирование",
-                "results_summary": "Резюме результатов"
-            }
-        else:  # English
-            return {
-                "problem_statement": "Problem Statement",
-                "methodology": "Methodology",
-                "solution_steps": "Solution Steps", 
-                "computational_verification": "Computational Verification",
-                "analysis": "Analysis",
-                "conclusion": "Conclusion",
-                "problem_description": "Problem Description",
-                "algorithm_design": "Algorithm Design",
-                "implementation": "Implementation",
-                "testing": "Testing",
-                "performance_analysis": "Performance Analysis",
-                "conclusions": "Conclusions",
-                "research_question": "Research Question",
-                "data_analysis": "Data Analysis",
-                "findings": "Findings",
-                "statistical_analysis": "Statistical Analysis",
-                "conclusions_recommendations": "Conclusions and Recommendations",
-                "task_definition": "Task Definition",
-                "solution": "Solution",
-                "verification_testing": "Verification and Testing",
-                "results_summary": "Results Summary"
-            }
+        # Basic English section titles that LLM can translate
+        return {
+            "problem_statement": "Problem Statement",
+            "methodology": "Methodology",
+            "solution_steps": "Solution Steps",
+            "computational_verification": "Computational Verification",
+            "analysis": "Analysis",
+            "conclusion": "Conclusion",
+            "problem_description": "Problem Description",
+            "algorithm_design": "Algorithm Design",
+            "implementation": "Implementation",
+            "testing": "Testing",
+            "performance_analysis": "Performance Analysis",
+            "conclusions": "Conclusions",
+            "research_question": "Research Question",
+            "data_analysis": "Data Analysis",
+            "findings": "Findings",
+            "statistical_analysis": "Statistical Analysis",
+            "conclusions_recommendations": "Conclusions and Recommendations",
+            "task_definition": "Task Definition",
+            "solution": "Solution",
+            "verification_testing": "Verification and Testing",
+            "results_summary": "Results Summary"
+        }
     
     def _process_content(self, content: str) -> str:
         """Process content to ensure proper LaTeX formatting"""
@@ -380,10 +362,10 @@ class SmartLaTeXGenerator(BaseTool):
     def _process_math_expressions(self, content: str) -> str:
         """Process mathematical expressions to ensure proper LaTeX formatting"""
         
-        # Convert $...$ to \\(...\\) for inline math
+        # Convert $...$ to \(...\) for inline math
         content = re.sub(r'(?<!\\)\$([^$]+?)\$', r'\\(\1\\)', content)
         
-        # Convert $$...$$ to \\[...\\] for display math
+        # Convert $$...$$ to \[...\] for display math  
         content = re.sub(r'(?<!\\)\$\$([^$]+?)\$\$', r'\\[\1\\]', content, flags=re.DOTALL)
         
         # Fix common math notation issues

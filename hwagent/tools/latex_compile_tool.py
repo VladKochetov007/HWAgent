@@ -141,35 +141,31 @@ class LaTeXCompiler:
             file_name = os.path.basename(filepath)
             file_stem = Path(filepath).stem
             
-            # Enhanced pdflatex arguments with automatic input handling
+            # Enhanced pdflatex arguments with proper interaction handling
             cmd = [
                 engine,
-                '-interaction=nonstopmode',  # Don't stop on errors
-                '-halt-on-error',           # Stop on first error
+                '-interaction=batchmode',    # No interaction at all - prevents hanging
                 '-file-line-error',         # Show file and line for errors
-                '-shell-escape',            # Enable shell escape for packages like minted
+                '-synctex=1',               # Generate synctex for better error location
                 *extra_args,
                 file_name
             ]
             
-            # Use 'yes' command to automatically provide Enter for any prompts
-            # This ensures automatic input handling as requested
-            auto_input_cmd = ['yes', ''] + cmd
-            
+            # Run directly without 'yes' command wrapper - batchmode handles input
             result = subprocess.run(
-                auto_input_cmd,
+                cmd,
                 cwd=self.tmp_directory,
                 capture_output=True,
                 text=True,
                 timeout=self.timeout,
-                input='\n' * 10  # Provide multiple Enter inputs just in case
+                input=''  # Empty input to ensure no hanging
             )
             
             output_lines = [f"=== LaTeX Compilation: {file_name} ==="]
             output_lines.append(f"Engine: {engine}")
-            output_lines.append(f"Command: yes '' | {' '.join(cmd)}")
+            output_lines.append(f"Command: {' '.join(cmd)}")
             output_lines.append(f"Exit Code: {result.returncode}")
-            output_lines.append("Auto-input: Enabled (automatic Enter for prompts)")
+            output_lines.append("Interaction: batchmode (no prompts)")
             
             # Check for PDF output
             pdf_path = os.path.join(self.tmp_directory, f"{file_stem}.pdf")

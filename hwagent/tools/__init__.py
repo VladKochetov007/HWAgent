@@ -1,26 +1,57 @@
 """
-Tools module for HWAgent.
-Contains all available tools for the agent.
+Tools package for HWAgent
+Exports all available tools for use by the tool manager.
 """
 
-from hwagent.tools.create_file_tool import CreateFileTool
-from hwagent.tools.read_file_tool import ReadFileTool
-from hwagent.tools.delete_file_tool import DeleteFileTool
-from hwagent.tools.list_files_tool import ListFilesTool
-from hwagent.tools.execute_code_tool import ExecuteCodeTool
-from hwagent.tools.web_search_tool import WebSearchTool
-from hwagent.tools.latex_compile_tool import LaTeXCompileTool
-from hwagent.tools.latex_fix_tool import LaTeXFixTool
-from hwagent.tools.smart_latex_generator_tool import SmartLaTeXGenerator
+# Core tool functionality
+from hwagent.core.base_tool import BaseTool, FileOperationTool
 
+# File operation tools
+from .create_file_tool import CreateFileTool
+from .read_file_tool import ReadFileTool
+from .delete_file_tool import DeleteFileTool
+from .list_files_tool import ListFilesTool
+
+# Execution tools
+from .execute_code_tool import ExecuteCodeTool
+
+# Web tools
+from .web_search_tool import WebSearchTool
+from .enhanced_web_search_tool import EnhancedWebSearchTool
+from .memory_tool import MemoryTool
+
+# Unified LaTeX tool (replaces all separate LaTeX tools)
+from .unified_latex_tool import UnifiedLaTeXTool
+
+# Export all tools
 __all__ = [
-    'CreateFileTool',
-    'ReadFileTool', 
-    'DeleteFileTool',
-    'ListFilesTool',
-    'ExecuteCodeTool',
-    'WebSearchTool',
-    'LaTeXCompileTool',
-    'LaTeXFixTool',
-    'SmartLaTeXGenerator'
-] 
+    "BaseTool",
+    "FileOperationTool",
+    "CreateFileTool", 
+    "ReadFileTool",
+    "DeleteFileTool",
+    "ListFilesTool",
+    "ExecuteCodeTool",
+    "WebSearchTool",
+    "EnhancedWebSearchTool",
+    "MemoryTool",
+    "UnifiedLaTeXTool"
+]
+
+# Legacy support - deprecated tools (will be removed in future versions)
+# These are kept for backward compatibility but should not be used in new code
+try:
+    from .simple_latex_tool import SimpleLaTeXTool
+    from .smart_latex_generator_tool import SmartLaTeXGenerator
+    from .latex_compile_tool import LaTeXCompileTool
+    from .latex_fix_tool import LaTeXFixTool
+    
+    __all__.extend([
+        "SimpleLaTeXTool",
+        "SmartLaTeXGenerator", 
+        "LaTeXCompileTool",
+        "LaTeXFixTool"
+    ])
+except ImportError:
+    # Legacy tools not available, which is fine
+    pass 

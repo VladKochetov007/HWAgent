@@ -1,0 +1,15 @@
+[
+  {
+    "timestamp": "2025-05-31T22:11:52.779728",
+    "user_query": "Test query for memory system",
+    "agent_response": "Test response with LaTeX compilation",
+    "tools_used": [
+      "enhanced_web_search",
+      "memory"
+    ],
+    "task_type": "general",
+    "session_id": "20250531_221152",
+    "success": true,
+    "error_message": null
+  }
+]

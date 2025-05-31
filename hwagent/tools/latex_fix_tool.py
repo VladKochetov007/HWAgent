@@ -19,7 +19,7 @@ class LaTeXFixTool(BaseTool):
     
     @property
     def description(self) -> str:
-        return "Automatically fix LaTeX syntax errors, handle Unicode issues, and generate proper LaTeX documents using templates."
+        return "Enhanced LaTeX document fix tool with intelligent double-slash correction and English defaults. Handles template regeneration with universal language support via LLM control."
     
     @property
     def parameters_schema(self) -> Dict[str, any]:
@@ -56,62 +56,22 @@ class LaTeXFixTool(BaseTool):
         }
     
     def _get_math_template(self) -> str:
-        """Template for mathematical problems"""
+        """Mathematical template with universal language support"""
         return r"""\documentclass[12pt,a4paper]{{article}}
 \usepackage[utf8]{{inputenc}}
-\usepackage[russian,english,ukrainian]{{babel}}
+\usepackage[T1,OT1]{{fontenc}}
+\usepackage[english]{{babel}}
 \usepackage{{amsmath,amssymb,amsfonts}}
 \usepackage{{geometry}}
-\usepackage{{listings}}
-\usepackage{{xcolor}}
-\usepackage{{hyperref}}
 \usepackage{{graphicx}}
 \usepackage{{float}}
-
-\geometry{{a4paper, margin=1in}}
-
-\title{{{title}}}
-\author{{AI Technical Assistant}}
-\date{{\today}}
-
-\begin{{document}}
-\maketitle
-\tableofcontents
-\newpage
-
-\section{{Постановка задачи}}
-{problem_statement}
-
-\section{{Методология}}
-{methodology}
-
-\section{{Пошаговое решение}}
-{solution_steps}
-
-\section{{Вычислительная проверка}}
-{computational_verification}
-
-\section{{Анализ результатов}}
-{analysis}
-
-\section{{Заключение}}
-{conclusion}
-
-\end{{document}}"""
-
-    def _get_programming_template(self) -> str:
-        """Template for programming tasks"""
-        return r"""\documentclass[12pt,a4paper]{{article}}
-\usepackage[utf8]{{inputenc}}
-\usepackage[russian,english,ukrainian]{{babel}}
-\usepackage{{amsmath,amssymb,amsfonts}}
-\usepackage{{geometry}}
+\usepackage{{hyperref}}
 \usepackage{{listings}}
 \usepackage{{xcolor}}
-\usepackage{{hyperref}}
 
 \geometry{{a4paper, margin=1in}}
 
+% Code styling
 \definecolor{{codegray}}{{rgb}}{{0.5,0.5,0.5}}
 \definecolor{{codepurple}}{{rgb}}{{0.58,0,0.82}}
 \definecolor{{backcolour}}{{rgb}}{{0.95,0.95,0.92}}
@@ -138,7 +98,7 @@ class LaTeXFixTool(BaseTool):
 \lstset{{style=mystyle}}
 
 \title{{{title}}}
-\author{{AI Technical Assistant}}
+\author{{Technical Assistant}}
 \date{{\today}}
 
 \begin{{document}}
@@ -146,43 +106,150 @@ class LaTeXFixTool(BaseTool):
 \tableofcontents
 \newpage
 
-\section{{Описание задачи}}
+\section{{Problem Statement}}
+{problem_statement}
+
+\section{{Methodology}}  
+{methodology}
+
+\section{{Solution}}
+{solution_steps}
+
+\section{{Computational Verification}}
+{computational_verification}
+
+\section{{Analysis}}
+{analysis}
+
+\section{{Conclusion}}
+{conclusion}
+
+\end{{document}}"""
+
+    def _get_programming_template(self) -> str:
+        """Programming template with universal language support"""
+        return r"""\documentclass[12pt,a4paper]{{article}}
+\usepackage[utf8]{{inputenc}}
+\usepackage[T1,OT1]{{fontenc}}
+\usepackage[english]{{babel}}
+\usepackage{{amsmath,amssymb}}
+\usepackage{{geometry}}
+\usepackage{{graphicx}}
+\usepackage{{float}}
+\usepackage{{hyperref}}
+\usepackage{{listings}}
+\usepackage{{xcolor}}
+\usepackage{{algorithm}}
+\usepackage{{algorithmic}}
+
+\geometry{{a4paper, margin=1in}}
+
+% Code styling configuration
+\definecolor{{codegray}}{{rgb}}{{0.5,0.5,0.5}}
+\definecolor{{codepurple}}{{rgb}}{{0.58,0,0.82}}
+\definecolor{{backcolour}}{{rgb}}{{0.95,0.95,0.92}}
+
+\lstdefinestyle{{mystyle}}{{
+    backgroundcolor=\color{{backcolour}},   
+    commentstyle=\color{{codegray}},
+    keywordstyle=\color{{blue}},
+    numberstyle=\tiny\color{{codegray}},
+    stringstyle=\color{{codepurple}},
+    basicstyle=\ttfamily\footnotesize,
+    breakatwhitespace=false,         
+    breaklines=true,                 
+    captionpos=b,                    
+    keepspaces=true,                 
+    numbers=left,                    
+    numbersep=5pt,                  
+    showspaces=false,                
+    showstringspaces=false,
+    showtabs=false,                  
+    tabsize=2
+}}
+
+\lstset{{style=mystyle}}
+
+\title{{{title}}}
+\author{{Technical Assistant}}
+\date{{\today}}
+
+\begin{{document}}
+\maketitle
+\tableofcontents
+\newpage
+
+\section{{Problem Description}}
 {problem_description}
 
-\section{{Дизайн алгоритма}}
-{algorithm_design}
+\section{{Algorithm Development}}
+{algorithm_development}
 
-\section{{Реализация}}
+\section{{Implementation}}
 {implementation}
 
-\section{{Тестирование}}
-{testing}
+\section{{Code Listings}}
+{code_listings}
 
-\section{{Анализ производительности}}
+\section{{Testing and Validation}}
+{testing_validation}
+
+\section{{Performance Analysis}}
 {performance_analysis}
 
-\section{{Выводы}}
-{conclusions}
+\section{{Conclusion}}
+{conclusion}
 
 \end{{document}}"""
 
     def _get_analysis_template(self) -> str:
-        """Template for analysis tasks"""
+        """Analysis template with universal language support"""
         return r"""\documentclass[12pt,a4paper]{{article}}
 \usepackage[utf8]{{inputenc}}
-\usepackage[russian,english,ukrainian]{{babel}}
-\usepackage{{amsmath,amssymb,amsfonts}}
+\usepackage[T1,OT1]{{fontenc}}
+\usepackage[english]{{babel}}
+\usepackage{{amsmath,amssymb}}
 \usepackage{{geometry}}
+\usepackage{{graphicx}}
+\usepackage{{float}}
+\usepackage{{hyperref}}
+\usepackage{{booktabs}}
+\usepackage{{array}}
+\usepackage{{longtable}}
+\usepackage{{multirow}}
 \usepackage{{listings}}
 \usepackage{{xcolor}}
-\usepackage{{hyperref}}
-\usepackage{{graphicx}}
-\usepackage{{booktabs}}
 
 \geometry{{a4paper, margin=1in}}
 
+% Code styling configuration
+\definecolor{{codegray}}{{rgb}}{{0.5,0.5,0.5}}
+\definecolor{{codepurple}}{{rgb}}{{0.58,0,0.82}}
+\definecolor{{backcolour}}{{rgb}}{{0.95,0.95,0.92}}
+
+\lstdefinestyle{{mystyle}}{{
+    backgroundcolor=\color{{backcolour}},   
+    commentstyle=\color{{codegray}},
+    keywordstyle=\color{{blue}},
+    numberstyle=\tiny\color{{codegray}},
+    stringstyle=\color{{codepurple}},
+    basicstyle=\ttfamily\footnotesize,
+    breakatwhitespace=false,         
+    breaklines=true,                 
+    captionpos=b,                    
+    keepspaces=true,                 
+    numbers=left,                    
+    numbersep=5pt,                  
+    showspaces=false,                
+    showstringspaces=false,
+    showtabs=false,                  
+    tabsize=2
+}}
+
+\lstset{{style=mystyle}}
+
 \title{{{title}}}
-\author{{AI Technical Assistant}}
+\author{{Technical Assistant}}
 \date{{\today}}
 
 \begin{{document}}
@@ -190,41 +257,73 @@ class LaTeXFixTool(BaseTool):
 \tableofcontents
 \newpage
 
-\section{{Исследовательский вопрос}}
-{research_question}
+\section{{Introduction}}
+{introduction}
 
-\section{{Методология}}
-{methodology}
+\section{{Data and Methodology}}
+{data_methodology}
 
-\section{{Анализ данных}}
-{data_analysis}
+\section{{Analysis Results}}
+{analysis_results}
 
-\section{{Результаты}}
-{findings}
+\section{{Computational Verification}}
+{computational_verification}
 
-\section{{Статистический анализ}}
-{statistical_analysis}
+\section{{Discussion}}
+{discussion}
 
-\section{{Выводы и рекомендации}}
-{conclusions_recommendations}
+\section{{Recommendations}}
+{recommendations}
+
+\section{{Conclusion}}
+{conclusion}
 
 \end{{document}}"""
 
     def _get_general_template(self) -> str:
-        """General template for any task"""
+        """General template with universal language support"""
         return r"""\documentclass[12pt,a4paper]{{article}}
 \usepackage[utf8]{{inputenc}}
-\usepackage[russian,english,ukrainian]{{babel}}
-\usepackage{{amsmath,amssymb,amsfonts}}
+\usepackage[T1,OT1]{{fontenc}}
+\usepackage[english]{{babel}}
+\usepackage{{amsmath,amssymb}}
 \usepackage{{geometry}}
+\usepackage{{graphicx}}
+\usepackage{{float}}
+\usepackage{{hyperref}}
 \usepackage{{listings}}
 \usepackage{{xcolor}}
-\usepackage{{hyperref}}
 
 \geometry{{a4paper, margin=1in}}
 
+% Code styling configuration
+\definecolor{{codegray}}{{rgb}}{{0.5,0.5,0.5}}
+\definecolor{{codepurple}}{{rgb}}{{0.58,0,0.82}}
+\definecolor{{backcolour}}{{rgb}}{{0.95,0.95,0.92}}
+
+\lstdefinestyle{{mystyle}}{{
+    backgroundcolor=\color{{backcolour}},   
+    commentstyle=\color{{codegray}},
+    keywordstyle=\color{{blue}},
+    numberstyle=\tiny\color{{codegray}},
+    stringstyle=\color{{codepurple}},
+    basicstyle=\ttfamily\footnotesize,
+    breakatwhitespace=false,         
+    breaklines=true,                 
+    captionpos=b,                    
+    keepspaces=true,                 
+    numbers=left,                    
+    numbersep=5pt,                  
+    showspaces=false,                
+    showstringspaces=false,
+    showtabs=false,                  
+    tabsize=2
+}}
+
+\lstset{{style=mystyle}}
+
 \title{{{title}}}
-\author{{AI Technical Assistant}}
+\author{{Technical Assistant}}
 \date{{\today}}
 
 \begin{{document}}
@@ -232,20 +331,23 @@ class LaTeXFixTool(BaseTool):
 \tableofcontents
 \newpage
 
-\section{{Определение задачи}}
-{task_definition}
+\section{{Task Overview}}
+{task_overview}
 
-\section{{Методология}}
+\section{{Methodology}}
 {methodology}
 
-\section{{Решение}}
-{solution}
+\section{{Implementation}}
+{implementation}
 
-\section{{Проверка и тестирование}}
-{verification_testing}
+\section{{Results}}
+{results}
 
-\section{{Резюме результатов}}
-{results_summary}
+\section{{Analysis}}
+{analysis}
+
+\section{{Conclusion}}
+{conclusion}
 
 \end{{document}}"""
 
@@ -302,7 +404,7 @@ class LaTeXFixTool(BaseTool):
         content = self._fix_double_backslashes(content)
         
         # Step 2: Fix Unicode and encoding issues
-        content = self._fix_unicode_issues(content)
+        content = self._fix_encoding_issues(content)
         
         # Step 3: Fix structural issues
         content = self._fix_structure(content)
@@ -323,8 +425,11 @@ class LaTeXFixTool(BaseTool):
         return content
 
     def _fix_double_backslashes(self, content: str) -> str:
-        """Fix double backslashes that should be single"""
-        # First, fix specific LaTeX commands that commonly have double backslashes
+        """Fix double backslashes that should be single - corrected regex logic"""
+        
+        # First pass: Fix specific LaTeX commands that commonly have double backslashes
+        # In r-strings: r'\\\\' = 2 literal backslashes (\\), r'\\' = 1 literal backslash (\)
+        # For regex: r'\\\\' matches \\, r'\\' replacement gives \
         specific_fixes = [
             (r'\\\\documentclass', r'\\documentclass'),
             (r'\\\\usepackage', r'\\usepackage'),
@@ -345,49 +450,87 @@ class LaTeXFixTool(BaseTool):
             (r'\\\\lstset\{', r'\\lstset{'),
             (r'\\\\textbf\{', r'\\textbf{'),
             (r'\\\\textit\{', r'\\textit{'),
+            (r'\\\\emph\{', r'\\emph{'),
             (r'\\\\item', r'\\item'),
             (r'\\\\centering', r'\\centering'),
             (r'\\\\includegraphics', r'\\includegraphics'),
             (r'\\\\caption\{', r'\\caption{'),
             (r'\\\\label\{', r'\\label{'),
+            (r'\\\\ref\{', r'\\ref{'),
+            (r'\\\\cite\{', r'\\cite{'),
+            (r'\\\\footnote\{', r'\\footnote{'),
+            (r'\\\\frac\{', r'\\frac{'),
+            (r'\\\\sqrt\{', r'\\sqrt{'),
+            (r'\\\\sum', r'\\sum'),
+            (r'\\\\int', r'\\int'),
+            (r'\\\\prod', r'\\prod'),
+            (r'\\\\lim', r'\\lim'),
+            (r'\\\\sin', r'\\sin'),
+            (r'\\\\cos', r'\\cos'),
+            (r'\\\\tan', r'\\tan'),
+            (r'\\\\log', r'\\log'),
+            (r'\\\\ln', r'\\ln'),
+            (r'\\\\exp', r'\\exp'),
         ]
         
         # Apply specific fixes
         for pattern, replacement in specific_fixes:
             content = re.sub(pattern, replacement, content)
         
-        # General fix for any LaTeX command that starts with double backslashes
-        # This catches cases we might have missed above
-        # Pattern: \\ followed by a letter, capturing the command name
-        content = re.sub(r'\\\\([a-zA-Z]+)', r'\\\\\1', content)
+        # Second pass: General fix for LaTeX commands (be more careful)
+        # Only fix \\ followed by a letter that starts a valid LaTeX command
+        # This pattern is more conservative to avoid breaking valid \\ line breaks
+        content = re.sub(r'\\\\([a-zA-Z][a-zA-Z0-9]*)\b', r'\\\1', content)
         
-        # Fix double backslashes in math mode indicators
+        # Third pass: Fix double backslashes in math mode delimiters
         content = re.sub(r'\\\\\[', r'\\[', content)
         content = re.sub(r'\\\\\]', r'\\]', content)
         content = re.sub(r'\\\\\(', r'\\(', content)
         content = re.sub(r'\\\\\)', r'\\)', content)
         
-        # Fix double backslashes before special characters in LaTeX
-        content = re.sub(r'\\\\&', r'\\&', content)
-        content = re.sub(r'\\\\%', r'\\%', content)
-        content = re.sub(r'\\\\\$', r'\\$', content)
-        content = re.sub(r'\\\\#', r'\\#', content)
-        content = re.sub(r'\\\\_', r'\\_', content)
+        # Fourth pass: Fix double backslashes before special characters in LaTeX
+        # Only fix these when they're clearly wrong (not in valid contexts)
+        content = re.sub(r'\\\\&(?!\s)', r'\\&', content)
+        content = re.sub(r'\\\\%(?![^\\]*\\\\)', r'\\%', content)
+        content = re.sub(r'\\\\\$(?![^\\]*\$)', r'\\$', content)
+        content = re.sub(r'\\\\#(?![^\\]*#)', r'\\#', content)
+        content = re.sub(r'\\\\_(?![^\\]*_)', r'\\_', content)
         content = re.sub(r'\\\\\{', r'\\{', content)
         content = re.sub(r'\\\\\}', r'\\}', content)
         
+        # Fifth pass: Be more careful with line breaks \\
+        # Don't remove \\ that are valid line breaks in specific contexts:
+        # - At the end of table rows (followed by whitespace and &, \\ or \hline)
+        # - In specific environments like center, flushleft, flushright
+        # - In title pages or after \maketitle
+        
+        # Remove \\ that are clearly wrong (not in valid line break contexts)
+        # This regex preserves \\ that are:
+        # - At end of lines followed by whitespace
+        # - In table contexts (followed by & or \hline)
+        # - In proper line break contexts
+        content = re.sub(r'\\\\(?!\s*(?:\n|&|\\hline|\\\\|\}|\]|\)|$))', r'', content)
+        
         return content
 
-    def _fix_unicode_issues(self, content: str) -> str:
-        """Fix Unicode and encoding issues"""
-        # Ensure proper babel and inputenc packages
-        if r'\usepackage[utf8]{inputenc}' not in content:
-            # Add after documentclass
+    def _fix_encoding_issues(self, content: str) -> str:
+        """Fix encoding issues in LaTeX documents - universal approach"""
+        
+        # Ensure UTF-8 input encoding is present
+        if r'\usepackage[utf8]{inputenc}' not in content and r'\usepackage{inputenc}' not in content:
+            # Add UTF-8 input encoding after documentclass
             content = re.sub(
-                r'(\\documentclass.*?\n)',
-                r'\1\\usepackage[utf8]{inputenc}\n\\usepackage[russian,english]{babel}\n',
-                content,
-                count=1
+                r'(\\documentclass\{[^}]*\})',
+                r'\1\n\\usepackage[utf8]{inputenc}',
+                content
+            )
+        
+        # Ensure basic fontenc is present (LLM can specify more specific encoding if needed)
+        if r'\usepackage{fontenc}' not in content and r'\usepackage[' not in content:
+            content = re.sub(
+                r'(\\usepackage\[utf8\]\{inputenc\})',
+                r'\1\n\\usepackage[T1]{fontenc}',
+                content
             )
         
         return content
@@ -474,80 +617,65 @@ class LaTeXFixTool(BaseTool):
         return content
 
     def _is_severely_broken(self, content: str) -> bool:
-        """Check if content is severely broken and needs template regeneration"""
-        issues = 0
+        """Check if document has severe issues - universal approach"""
         
-        # Count critical issues
-        if '\\documentclass' not in content:
-            issues += 1
-        if '\\begin{document}' not in content:
-            issues += 1
-        if '\\end{document}' not in content:
-            issues += 1
-        if 'Unicode character' in content:  # Indicates encoding issues
-            issues += 1
-        if content.count('\\\\') > 10:  # Too many double backslashes
-            issues += 1
+        issues_count = 0
         
-        # Check for patterns that commonly cause "Missing $ inserted" errors
-        if re.search(r'[_^](?!\{)', content):  # Unescaped _ or ^ outside math mode
-            issues += 1
+        # Critical LaTeX structure checks
+        if not re.search(r'\\documentclass\{', content):
+            issues_count += 3
+        if not re.search(r'\\begin\{document\}', content):
+            issues_count += 3
+        if not re.search(r'\\end\{document\}', content):
+            issues_count += 3
         
-        # Check for patterns that cause "There's no line here to end" errors
-        if re.search(r'\\\\(?![a-zA-Z]|\[|\]|\(|\))', content):  # Inappropriate \\ usage
-            issues += 1
-            
-        # Check for mixed markdown and LaTeX syntax
-        if re.search(r'^#{1,6}\s', content, re.MULTILINE):  # Markdown headers
-            issues += 1
-        if re.search(r'\*\*.*?\*\*', content):  # Markdown bold
-            issues += 1
-        if re.search(r'(?<!\\)\$\$.*?\$\$', content):  # $$ math instead of \[ \]
-            issues += 1
-            
-        # Check for malformed LaTeX commands
-        if re.search(r'\\\\[a-zA-Z]+\{', content):  # Double backslash before commands
-            issues += 1
+        # Basic encoding checks
+        if not re.search(r'\\usepackage\[utf8\]\{inputenc\}', content):
+            issues_count += 1
         
-        return issues >= 3
+        # Common error patterns
+        if re.search(r'\\\\[^a-zA-Z]', content):  # Double backslashes not followed by letters
+            issues_count += 2
+        if re.search(r'[{}](?!\w)', content):  # Unescaped braces
+            issues_count += 1
+        if re.search(r'%[^%\n]*[{}]', content):  # Braces in comments
+            issues_count += 1
+        
+        return issues_count >= 5
 
     def _regenerate_with_template(self, content: str, task_type: str, **kwargs) -> str:
-        """Regenerate content using appropriate template"""
+        """Regenerate content using appropriate template - English by default"""
         
         # Extract key information from broken content
-        title = self._extract_title(content) or kwargs.get('title', 'Техническое решение')
+        title = self._extract_title(content) or kwargs.get('title', 'Technical Solution')
         
         # Get appropriate template
         template = self.templates.get(task_type, self.templates['general'])
         
-        # Fill template with extracted or provided content
+        # Fill template with extracted or provided content - English by default
         template_vars = {
             'title': title,
-            'problem_statement': kwargs.get('problem_statement', 'Требуется решить техническую задачу.'),
-            'methodology': kwargs.get('methodology', 'Применяется системный подход к решению задачи.'),
-            'solution_steps': kwargs.get('solution_steps', 'Пошаговое решение будет представлено ниже.'),
-            'computational_verification': kwargs.get('computational_verification', 'Вычислительная проверка проводится с использованием соответствующих инструментов.'),
-            'analysis': kwargs.get('analysis', 'Анализ результатов показывает корректность решения.'),
-            'conclusion': kwargs.get('conclusion', 'Задача решена успешно.'),
+            'problem_statement': kwargs.get('problem_statement', 'A technical problem needs to be solved.'),
+            'methodology': kwargs.get('methodology', 'A systematic approach is applied to solve the problem.'),
+            'solution_steps': kwargs.get('solution_steps', 'Step-by-step solution will be presented below.'),
+            'computational_verification': kwargs.get('computational_verification', 'Computational verification is performed using appropriate tools.'),
+            'analysis': kwargs.get('analysis', 'Analysis of results shows correctness of the solution.'),
+            'conclusion': kwargs.get('conclusion', 'The problem has been solved successfully.'),
             
             # For other templates
-            'problem_description': kwargs.get('problem_description', 'Описание технической задачи.'),
-            'algorithm_design': kwargs.get('algorithm_design', 'Дизайн алгоритма решения.'),
-            'implementation': kwargs.get('implementation', 'Детали реализации.'),
-            'testing': kwargs.get('testing', 'Процедуры тестирования.'),
-            'performance_analysis': kwargs.get('performance_analysis', 'Анализ производительности.'),
-            'conclusions': kwargs.get('conclusions', 'Выводы и заключения.'),
+            'problem_description': kwargs.get('problem_description', 'Description of the technical problem.'),
+            'algorithm_development': kwargs.get('algorithm_development', 'Algorithm development and design.'),
+            'implementation': kwargs.get('implementation', 'Implementation details.'),
+            'code_listings': kwargs.get('code_listings', 'Code listings and examples.'),
+            'testing_validation': kwargs.get('testing_validation', 'Testing and validation procedures.'),
+            'performance_analysis': kwargs.get('performance_analysis', 'Performance analysis.'),
             
-            'research_question': kwargs.get('research_question', 'Исследовательский вопрос.'),
-            'data_analysis': kwargs.get('data_analysis', 'Анализ данных.'),
-            'findings': kwargs.get('findings', 'Основные находки.'),
-            'statistical_analysis': kwargs.get('statistical_analysis', 'Статистический анализ.'),
-            'conclusions_recommendations': kwargs.get('conclusions_recommendations', 'Выводы и рекомендации.'),
+            # For analysis template
+            'task_overview': kwargs.get('task_overview', 'Overview of the task.'),
+            'methodology': kwargs.get('methodology', 'Methodology used for analysis.'),
+            'results': kwargs.get('results', 'Results and findings.'),
             
-            'task_definition': kwargs.get('task_definition', 'Определение задачи.'),
-            'solution': kwargs.get('solution', 'Решение задачи.'),
-            'verification_testing': kwargs.get('verification_testing', 'Проверка и тестирование.'),
-            'results_summary': kwargs.get('results_summary', 'Резюме результатов.')
+            'conclusion': kwargs.get('conclusion', 'Conclusions and final remarks.')
         }
         
         return template.format(**template_vars)
@@ -560,7 +688,7 @@ class LaTeXFixTool(BaseTool):
         return None
 
     def _final_cleanup(self, content: str) -> str:
-        """Final cleanup of the content"""
+        """Final cleanup of the content - improved double slash handling"""
         
         # Remove multiple empty lines
         content = re.sub(r'\n\s*\n\s*\n', r'\n\n', content)
@@ -569,16 +697,21 @@ class LaTeXFixTool(BaseTool):
         content = re.sub(r'\n(\\section\{)', r'\n\n\1', content)
         content = re.sub(r'\n(\\subsection\{)', r'\n\n\1', content)
         
-        # Final pass to catch any remaining double backslashes
-        # This is more aggressive and catches any remaining issues
-        content = re.sub(r'\\\\([a-zA-Z])', r'\\\1', content)
+        # Final pass to catch any remaining wrong double backslashes
+        # Be very conservative - only fix obvious command errors
+        # Pattern: \\ followed by a lowercase letter that's clearly a LaTeX command
+        content = re.sub(r'\\\\([a-z][a-zA-Z]+\{)', r'\\\1', content)
         
-        # Remove inappropriate line breaks (\\) that are not in proper context
-        # Keep \\ only in specific contexts like table rows or forced line breaks
-        content = re.sub(r'\\\\(?!\s*[\n\r]|\s*&|\s*\\hline)', r'', content)
+        # Remove clearly inappropriate line breaks (\\) that are not in proper context
+        # Only remove \\ that are:
+        # - Not followed by whitespace, newline, or end of string
+        # - Not in table contexts (& or \hline)
+        # - Not at proper line break positions
+        # This preserves valid \\ line breaks while removing erroneous ones
+        content = re.sub(r'\\\\(?![\\s]*(?:\n|\r|&|\\hline|\\\\|\}|\]|\)|$|\s))', r' ', content)
         
-        # Fix any remaining double spaces
-        content = re.sub(r'\s{2,}', r' ', content)
+        # Fix any remaining multiple spaces (but preserve intentional spacing)
+        content = re.sub(r'[ \t]{3,}', r'  ', content)  # Reduce excessive spaces but keep some
         
         # Ensure proper line endings
         content = content.strip() + '\n'
