@@ -674,7 +674,7 @@ TMP_DIR_PATH.mkdir(exist_ok=True) # Ensure tmp directory exists
 
 @app.route('/api/fs/tmp/list', methods=['GET'])
 def list_tmp_directory():
-    """List files and directories in hwagent/tmp/."""
+    """List files and directories in tmp/."""
     path_param = request.args.get('path', '.') # Relative path within tmp
     logger.info(f"Listing tmp directory for path: '{path_param}'")
     try:
@@ -706,7 +706,7 @@ def list_tmp_directory():
 
 @app.route('/api/fs/tmp/get', methods=['GET'])
 def get_tmp_file():
-    """Get content of a file from hwagent/tmp/."""
+    """Get content of a file from tmp/."""
     file_path_str = request.args.get('path')
     logger.info(f"Request to get tmp file: '{file_path_str}'")
     if not file_path_str:
@@ -740,7 +740,7 @@ def get_tmp_file():
 
 @app.route('/api/fs/tmp/delete', methods=['DELETE'])
 def delete_tmp_item():
-    """Delete a file or directory from hwagent/tmp/."""
+    """Delete a file or directory from tmp/."""
     item_path_str = request.args.get('path')
     logger.info(f"Request to delete tmp item: '{item_path_str}'")
     if not item_path_str:

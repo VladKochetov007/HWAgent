@@ -360,13 +360,84 @@ class LaTeXTemplateGenerator:
         return section_templates.get(task_type.lower(), section_templates['general'])
 
 
+class LaTeXContentProcessor:
+    """Handles LaTeX content preprocessing including quote removal"""
+    
+    @staticmethod
+    def clean_content(content: str) -> str:
+        """Remove unwanted quotes from beginning and end of content"""
+        if not content:
+            return content
+        
+        # Remove single quotes (') from beginning and end
+        # Can be 1, 2, 3 or more quotes
+        content = LaTeXContentProcessor._remove_quotes_pattern(content, "'")
+        
+        # Remove double quotes (") from beginning and end  
+        content = LaTeXContentProcessor._remove_quotes_pattern(content, '"')
+        
+        # Remove backticks (`) from beginning and end
+        content = LaTeXContentProcessor._remove_quotes_pattern(content, '`')
+        
+        return content.strip()
+    
+    @staticmethod
+    def _remove_quotes_pattern(content: str, quote_char: str) -> str:
+        """Remove specific quote character from beginning and end"""
+        # Remove from beginning
+        while content.startswith(quote_char):
+            content = content[1:]
+        
+        # Remove from end
+        while content.endswith(quote_char):
+            content = content[:-1]
+        
+        return content
+    
+    @staticmethod
+    def ensure_mathematical_packages(content: str) -> str:
+        """Ensure all necessary mathematical packages are included"""
+        
+        # Required mathematical packages
+        required_math_packages = [
+            r'\usepackage{amsmath}',
+            r'\usepackage{amsfonts}', 
+            r'\usepackage{amssymb}',
+            r'\usepackage{amsthm}',
+            r'\usepackage{mathtools}',
+            r'\usepackage{graphicx}',
+            r'\usepackage{geometry}'
+        ]
+        
+        # Find documentclass line
+        documentclass_match = re.search(r'\\documentclass.*?\{.*?\}', content)
+        if not documentclass_match:
+            return content
+        
+        # Check which packages are already included
+        existing_packages = set()
+        for package in required_math_packages:
+            if package in content:
+                existing_packages.add(package)
+        
+        # Add missing packages after documentclass
+        missing_packages = [pkg for pkg in required_math_packages if pkg not in existing_packages]
+        
+        if missing_packages:
+            insert_pos = documentclass_match.end()
+            packages_block = '\n' + '\n'.join(missing_packages) + '\n'
+            content = content[:insert_pos] + packages_block + content[insert_pos:]
+        
+        return content
+
+
 class UnifiedLaTeXTool(BaseTool):
-    """Unified LaTeX tool for document creation, template generation, and compilation"""
+    """Unified LaTeX document creation and compilation tool with enhanced features"""
     
     def __init__(self, tmp_directory: str = Constants.DEFAULT_TMP_DIRECTORY):
         super().__init__(tmp_directory)
         self.compiler_timeout = 30
-        self.supported_engines = ['pdflatex', 'xelatex', 'lualatex']
+        self.max_retry_attempts = 3
     
     @property
     def name(self) -> str:
@@ -374,22 +445,25 @@ class UnifiedLaTeXTool(BaseTool):
     
     @property
     def description(self) -> str:
-        return """Universal LaTeX tool for document creation and compilation.
-        
-        Operations:
-        - create: Create LaTeX document from content
-        - template: Generate basic template (LLM customizes language/content)
-        - compile: Compile existing LaTeX file to PDF
-        
-        Features:
-        - Basic universal setup (UTF-8, T1 fontenc, babel)
-        - LLM decides specific language packages and content
-        - Task-specific package suggestions (math, programming, analysis)
-        - Compilation error reporting (LLM resolves issues)
-        - Simple, flexible document structure
-        
-        Note: This tool provides basic setup. LLM should customize language support,
-        section titles, and content as needed for the specific task."""
+        return """Comprehensive LaTeX document creation and compilation tool with:
+- Automatic quote removal from content
+- Enhanced mathematical package support
+- Multiple compilation attempts with error recovery
+- Multi-language template generation
+- Flexible compilation engine selection
+- Detailed error reporting and analysis
+
+Operations:
+- create: Create document from content with automatic preprocessing
+- template: Generate language-specific template
+- compile: Compile existing LaTeX document to PDF
+
+Features:
+- Removes unwanted quotes from content beginning/end
+- Automatically includes required mathematical packages
+- Retry compilation on failure with fixes
+- Support for English/Russian/multilingual documents
+- Safe compilation with batch mode and timeouts"""
     
     @property
     def parameters_schema(self) -> Dict[str, Any]:
@@ -449,7 +523,7 @@ class UnifiedLaTeXTool(BaseTool):
             )
     
     def _create_document(self, **kwargs) -> ToolExecutionResult:
-        """Create LaTeX document from provided content"""
+        """Create LaTeX document from provided content with preprocessing"""
         filepath = kwargs["filepath"]
         content = kwargs["content"]
         compile_after = kwargs.get("compile", True)
@@ -460,32 +534,43 @@ class UnifiedLaTeXTool(BaseTool):
             filepath += '.tex'
         
         try:
+            # Preprocess content: remove quotes and ensure math packages
+            cleaned_content = LaTeXContentProcessor.clean_content(content)
+            enhanced_content = LaTeXContentProcessor.ensure_mathematical_packages(cleaned_content)
+            
             # Write content to file
             full_path = self._get_full_path(filepath)
             os.makedirs(os.path.dirname(full_path), exist_ok=True)
             
             with open(full_path, 'w', encoding='utf-8') as f:
-                f.write(content)
+                f.write(enhanced_content)
             
             result_data = {
                 "operation": "create",
                 "tex_file": filepath,
-                "file_size": len(content.encode('utf-8')),
+                "file_size": len(enhanced_content.encode('utf-8')),
+                "content_processed": True,
+                "quotes_removed": content != cleaned_content,
+                "math_packages_added": cleaned_content != enhanced_content,
                 "compiled": False,
                 "pdf_file": None
             }
             
             message = f"LaTeX document created: {filepath} ({result_data['file_size']} bytes)"
+            if result_data["quotes_removed"]:
+                message += " [quotes removed]"
+            if result_data["math_packages_added"]:
+                message += " [math packages added]"
             
-            # Compile if requested
+            # Compile if requested with retry logic
             if compile_after:
-                compile_result = self._perform_compilation(filepath, engine)
+                compile_result = self._compile_with_retry(filepath, engine)
                 result_data.update(compile_result)
                 
                 if compile_result["compilation_successful"]:
                     message += f" and compiled successfully to PDF"
                 else:
-                    message += " (compilation failed - see error details)"
+                    message += " (compilation failed after retries - see error details)"
             
             return ToolExecutionResult.success(message, self._format_result(result_data), result_data)
             
@@ -551,7 +636,7 @@ class UnifiedLaTeXTool(BaseTool):
             )
     
     def _compile_document(self, **kwargs) -> ToolExecutionResult:
-        """Compile existing LaTeX document to PDF"""
+        """Compile existing LaTeX document to PDF with retry logic"""
         filepath = kwargs["filepath"]
         engine = kwargs.get("engine", "pdflatex")
         
@@ -568,20 +653,34 @@ class UnifiedLaTeXTool(BaseTool):
                     f"File {filepath} does not exist in the working directory"
                 )
             
-            # Perform compilation
-            compile_result = self._perform_compilation(filepath, engine)
+            # Preprocess existing file for better compilation
+            with open(full_path, 'r', encoding='utf-8') as f:
+                content = f.read()
+            
+            # Clean and enhance content
+            cleaned_content = LaTeXContentProcessor.clean_content(content)
+            enhanced_content = LaTeXContentProcessor.ensure_mathematical_packages(cleaned_content)
+            
+            # Write back if changed
+            if enhanced_content != content:
+                with open(full_path, 'w', encoding='utf-8') as f:
+                    f.write(enhanced_content)
+            
+            # Perform compilation with retry
+            compile_result = self._compile_with_retry(filepath, engine)
             
             result_data = {
                 "operation": "compile",
                 "tex_file": filepath,
                 "engine": engine,
+                "content_enhanced": enhanced_content != content,
                 **compile_result
             }
             
             if compile_result["compilation_successful"]:
                 message = f"LaTeX compilation successful: {filepath} -> {compile_result['pdf_file']}"
             else:
-                message = f"LaTeX compilation failed: {filepath} (see error details)"
+                message = f"LaTeX compilation failed: {filepath} (see error details after {compile_result.get('retry_attempts', 1)} attempts)"
             
             return ToolExecutionResult.success(message, self._format_result(result_data), result_data)
             
@@ -590,6 +689,88 @@ class UnifiedLaTeXTool(BaseTool):
                 f"Failed to compile LaTeX document: {str(e)}",
                 f"Error compiling {filepath}: {str(e)}"
             )
+    
+    def _compile_with_retry(self, filepath: str, engine: str) -> Dict[str, Any]:
+        """Compile document with automatic retry and basic fixes"""
+        
+        retry_attempts = 0
+        last_result = None
+        
+        while retry_attempts < self.max_retry_attempts:
+            retry_attempts += 1
+            
+            # Perform compilation
+            compile_result = self._perform_compilation(filepath, engine)
+            last_result = compile_result
+            
+            # If successful, return immediately
+            if compile_result["compilation_successful"]:
+                compile_result["retry_attempts"] = retry_attempts
+                return compile_result
+            
+            # If failed and not last attempt, try basic fixes
+            if retry_attempts < self.max_retry_attempts:
+                try:
+                    self._apply_basic_fixes(filepath, compile_result)
+                except Exception as e:
+                    # If fixing fails, continue with next attempt
+                    pass
+        
+        # All attempts failed
+        last_result["retry_attempts"] = retry_attempts
+        last_result["all_attempts_failed"] = True
+        return last_result
+    
+    def _apply_basic_fixes(self, filepath: str, compile_result: Dict[str, Any]) -> None:
+        """Apply basic fixes based on compilation errors"""
+        
+        full_path = self._get_full_path(filepath)
+        
+        with open(full_path, 'r', encoding='utf-8') as f:
+            content = f.read()
+        
+        original_content = content
+        fixes_applied = []
+        
+        # Fix 1: Add missing packages based on errors
+        for error in compile_result.get("errors", []):
+            if "undefined control sequence" in error.get("message", "").lower():
+                # Add common packages that might be missing
+                if "\\bm{" in content and "\\usepackage{bm}" not in content:
+                    content = self._add_package_after_documentclass(content, "\\usepackage{bm}")
+                    fixes_applied.append("added bm package")
+                
+                if "\\boldsymbol{" in content and "\\usepackage{amsmath}" not in content:
+                    content = self._add_package_after_documentclass(content, "\\usepackage{amsmath}")
+                    fixes_applied.append("added amsmath package")
+        
+        # Fix 2: Encoding issues for Cyrillic
+        for error in compile_result.get("syntax_issues", []):
+            if error.get("type") == "cyrillic_encoding_error":
+                if "\\usepackage[T2A]{fontenc}" not in content:
+                    content = self._add_package_after_documentclass(content, "\\usepackage[T2A]{fontenc}")
+                    fixes_applied.append("added T2A fontenc")
+                if "\\usepackage[russian]{babel}" not in content:
+                    content = self._add_package_after_documentclass(content, "\\usepackage[russian]{babel}")
+                    fixes_applied.append("added russian babel")
+        
+        # Fix 3: Double backslash issues
+        if "\\\\\\\\" in content:  # Four backslashes
+            content = content.replace("\\\\\\\\", "\\\\")
+            fixes_applied.append("fixed quadruple backslashes")
+        
+        # Write back if any fixes were applied
+        if content != original_content and fixes_applied:
+            with open(full_path, 'w', encoding='utf-8') as f:
+                f.write(content)
+    
+    def _add_package_after_documentclass(self, content: str, package: str) -> str:
+        """Add a package line after documentclass"""
+        documentclass_match = re.search(r'\\documentclass.*?\{.*?\}', content)
+        if documentclass_match:
+            insert_pos = documentclass_match.end()
+            return content[:insert_pos] + '\n' + package + content[insert_pos:]
+        return content
     
     def _perform_compilation(self, filepath: str, engine: str) -> Dict[str, Any]:
         """Perform LaTeX compilation and return results"""

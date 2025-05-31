@@ -1,368 +1,260 @@
-# HWAgent - Advanced AI Assistant for Technical Tasks
+# HWAgent - Advanced Homework Assistant
 
-[![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Headless Compatible](https://img.shields.io/badge/Headless-Compatible-green.svg)](./work/TECHNICAL_OVERVIEW.md)
-[![LaTeX Support](https://img.shields.io/badge/LaTeX-Universal-orange.svg)](./work/UNIVERSAL_LATEX_PROTOCOL.md)
 
-> **HWAgent** - A headless-first AI assistant system specialized in technical tasks with automatic LaTeX documentation, enhanced plotting capabilities, and universal language support.
+**HWAgent** is an intelligent homework assistant system that specializes in solving complex academic tasks with automatic LaTeX documentation generation. The system excels at mathematical problems, programming assignments, data analysis, and research tasks while generating professional PDF documentation for every solution.
 
-## 🌟 Key Features
+## 🚀 Key Features
 
-### 🛡️ **Headless-First Design**
-- **Complete GUI Independence**: No visual displays, perfect for servers
-- **Automated Plotting**: All matplotlib operations save to files automatically  
-- **Safe LaTeX Compilation**: Batch mode with timeout protection
-- **Resource Management**: Automatic cleanup and memory management
+### Enhanced LaTeX Tools
+- **Automatic Quote Removal**: Intelligently removes unwanted quotes (`'`, `"`, `` ` ``) from LaTeX content
+- **Mathematical Package Auto-inclusion**: Automatically adds required math packages (amsmath, amsfonts, amssymb, etc.)
+- **Safe Compilation**: Batch mode compilation with timeout protection (no hanging)
+- **Multi-engine Support**: pdflatex, xelatex, lualatex with automatic error recovery
+- **Intelligent Error Parsing**: Provides detailed fix suggestions for common LaTeX issues
 
-### 📝 **Universal LaTeX System**
-- **Automatic Documentation**: Every task generates professional LaTeX documents
-- **Multi-Language Support**: English default with LLM-controlled localization
-- **Intelligent Error Correction**: Advanced LaTeX error detection and fixing
-- **Multiple Engines**: Support for pdflatex, xelatex, and lualatex
+### Universal LaTeX Documentation Protocol
+- **Mandatory PDF Generation**: Every task automatically generates professional LaTeX documentation
+- **Multi-language Support**: Automatic Cyrillic and Unicode support
+- **Template-based Generation**: Context-aware document templates for different task types
+- **Quality Assurance**: Automatic verification and error correction
 
-### 🧮 **Advanced Technical Capabilities**
-- **Mathematical Computing**: SymPy, NumPy, SciPy integration
-- **Data Analysis**: Pandas, statistical analysis, visualization
-- **Programming Support**: Algorithm implementation and analysis
-- **Physics Simulations**: Computational physics and modeling
+### Headless Operation
+- **Zero User Interaction**: All tools run completely autonomously
+- **Matplotlib Headless Mode**: Automatic `Agg` backend for graph generation
+- **Safe Plot Handling**: Automatic figure saving and memory cleanup
+- **No Display Dependencies**: Works in server environments without GUI
 
-### 🔧 **Robust Tool System**
-- **Modular Architecture**: Extensible tool-based design
-- **Error Recovery**: Intelligent error handling and correction
-- **Timeout Protection**: Prevents system hanging
-- **Safety-First**: Input validation and secure execution
+### Intelligent Task Solving
+- **Multi-domain Expertise**: Mathematics, Physics, Programming, Data Analysis
+- **Step-by-step Solutions**: Detailed solution methodology with verification
+- **Code Generation**: Automatic script generation with proper documentation
+- **Error Recovery**: Intelligent retry mechanisms for compilation failures
 
-## 🚀 Quick Start
+## 📦 Installation
 
-### Installation
+### Prerequisites
+- Python 3.11 or higher
+- LaTeX distribution (TeX Live, MiKTeX, or MacTeX)
+- Git
+
+### Quick Installation
+
 ```bash
-# Clone repository
-git clone https://github.com/your-repo/HWAgent.git
+# Clone the repository
+git clone https://github.com/yourusername/HWAgent.git
 cd HWAgent
 
 # Install dependencies
 pip install -r requirements.txt
 
-# Configure API key
-export OPENROUTER_API_KEY="your_api_key"
-
-# Test installation
-python -m hwagent --test-headless
+# Verify LaTeX installation
+pdflatex --version
 ```
+
+### LaTeX Requirements
+The system requires a working LaTeX installation with these packages:
+- `amsmath`, `amsfonts`, `amssymb`, `amsthm` (automatically included)
+- `mathtools`, `graphicx`, `geometry` (automatically included)
+- `babel`, `fontenc` (for multilingual support)
+- `listings`, `xcolor` (for code highlighting)
+
+## 🎯 Quick Start
 
 ### Basic Usage
-```bash
-# Web interface (recommended)
-python app.py
-# Open browser to http://localhost:8000
 
-# Command line
-python -m hwagent "Solve x^2 + 5x + 6 = 0 using quadratic formula"
+```python
+from hwagent.core.agent import HWAgent
 
-# Python API
-python -c "
-from hwagent import HWAgent
+# Initialize the agent
 agent = HWAgent()
-result = agent.execute('Calculate integral of x^2 from 0 to 5')
-print(f'Generated: {result.pdf_file}')
-"
+
+# Solve a mathematical problem
+result = agent.solve_task(
+    "Solve the differential equation: dy/dx + 2y = 3x^2",
+    task_type="math"
+)
+
+# LaTeX document and PDF are automatically generated
+print(f"Solution: {result.solution}")
+print(f"PDF generated: {result.pdf_path}")
 ```
 
-## 📊 Example Outputs
+### Working with LaTeX Tools
 
-### Mathematical Problem
-**Input**: "Find the derivative of f(x) = x³ + 2x² - 5x + 1"
+```python
+from hwagent.tools import UnifiedLaTeXTool, LaTeXFixTool
 
-**Generated Files**:
-- `derivative_solution.tex` - Complete LaTeX derivation
-- `derivative_solution.pdf` - Professional PDF document  
-- `verification.py` - Python verification script
-- `function_plot.png` - Function and derivative visualization
+# Create and compile LaTeX document with automatic preprocessing
+latex_tool = UnifiedLaTeXTool()
 
-### Programming Task
-**Input**: "Implement binary search algorithm with complexity analysis"
+# Content with quotes will be automatically cleaned
+content = """'''
+\\documentclass{article}
+\\begin{document}
+\\section{Test}
+Hello world: $E = mc^2$
+\\end{document}
+'''"""
 
-**Generated Files**:
-- `binary_search_analysis.tex` - Algorithm documentation
-- `binary_search_analysis.pdf` - Technical report
-- `binary_search.py` - Implementation with comments
-- `complexity_chart.png` - Performance visualization
+result = latex_tool.execute(
+    filepath="test.tex",
+    content=content,
+    compile=True
+)
 
-### Data Analysis
-**Input**: "Analyze correlation between temperature and sales data"
+# Quotes removed, math packages added, PDF compiled
+print(result.message)  # Shows: "quotes removed, packages enhanced"
+```
 
-**Generated Files**:
-- `correlation_analysis.tex` - Statistical report
-- `correlation_analysis.pdf` - Professional document
-- `analysis_script.py` - Data processing code
-- `correlation_plot.png` - Statistical visualization
-- `summary_stats.png` - Summary charts
+### Advanced Features
 
-## 🛠️ System Architecture
+```python
+# Fix existing LaTeX files with enhanced processing
+fix_tool = LaTeXFixTool()
+
+result = fix_tool.execute(
+    filepath="document.tex",
+    task_type="math"
+)
+
+# Comprehensive fixing including quote removal and package enhancement
+print(f"Fixed: {result.metadata['quotes_removed']}")
+print(f"Enhanced: {result.metadata['packages_enhanced']}")
+```
+
+## 🛠 Tool System
+
+### LaTeX Tools
+
+| Tool | Description | Key Features |
+|------|-------------|--------------|
+| `UnifiedLaTeXTool` | Complete LaTeX workflow | Quote removal, package enhancement, compilation |
+| `SimpleLaTeXTool` | Reliable document creation | Clean processing, error analysis |
+| `LaTeXCompileTool` | Advanced compilation | Multi-engine, preprocessing, error recovery |
+| `LaTeXFixTool` | Document repair | Template regeneration, comprehensive fixing |
+
+### Analysis Tools
+
+| Tool | Description | Key Features |
+|------|-------------|--------------|
+| `PythonAnalysisTool` | Code analysis and execution | Headless matplotlib, safe execution |
+| `MathSolverTool` | Mathematical problem solving | Symbolic computation, verification |
+| `DataAnalysisTool` | Data processing and visualization | Automatic graph generation, statistics |
+
+## 📚 Documentation Structure
+
+Every task generates comprehensive documentation:
 
 ```
-HWAgent/
-├── hwagent/
-│   ├── core/              # Core system components
-│   │   ├── agent.py       # Main agent logic
-│   │   ├── tools/         # Tool management
-│   │   └── config/        # Configuration handling
-│   ├── tools/             # Specialized tools
-│   │   ├── unified_latex_tool.py    # Complete LaTeX workflow
-│   │   ├── latex_compile_tool.py    # Compilation engine
-│   │   ├── latex_fix_tool.py        # Error correction
-│   │   ├── execute_code_tool.py     # Python execution
-│   │   └── plotting_tools.py        # Visualization
-│   ├── config/            # System configuration
-│   │   ├── prompts.yaml   # LLM prompts and requirements
-│   │   └── tools.yaml     # Tool specifications
-│   └── ui/                # Web interface
-│       ├── app.py         # Flask application
-│       └── templates/     # Web templates
-├── tests/                 # Comprehensive test suite
-├── work/                  # Documentation
-│   ├── README.md          # This file
-│   ├── USER_GUIDE.md      # Detailed user guide
-│   ├── TECHNICAL_OVERVIEW.md        # System architecture
-│   ├── UNIVERSAL_LATEX_PROTOCOL.md  # LaTeX documentation system
-│   ├── THOUGHT_STREAMING_GUIDE.md   # LLM interaction patterns
-│   ├── VERIFICATION_REQUIREMENTS.md # Quality assurance
-│   └── LATEX_FIXES_SUMMARY.md       # Error correction guide
-└── requirements.txt       # Python dependencies
+output/
+├── solution.tex          # Main LaTeX document
+├── solution.pdf          # Compiled PDF
+├── verification.py       # Solution verification script
+├── figures/              # Generated graphs and images
+│   ├── plot_1.png
+│   └── analysis_chart.png
+└── data/                 # Supporting data files
+    └── results.csv
 ```
 
 ## 🔧 Configuration
 
-### Environment Variables
+### Environment Setup
+
 ```bash
-# Required
-export OPENROUTER_API_KEY="your_api_key"
-
-# Optional
-export HWAGENT_HEADLESS="true"          # Force headless mode
-export HWAGENT_TIMEOUT="30"             # Timeout in seconds
-export HWAGENT_LANGUAGE="english"       # Default language
-export HWAGENT_TMP_PATH="/tmp/hwagent"   # Temporary files location
+# Set environment variables
+export HWAGENT_TMP_DIR="/tmp/hwagent"
+export HWAGENT_OUTPUT_DIR="./output"
+export MATPLOTLIB_BACKEND="Agg"  # Headless mode
 ```
 
-### Configuration File (`~/.hwagent/config.yaml`)
-```yaml
-api:
-  provider: openrouter
-  model: "anthropic/claude-3-sonnet"
+### Agent Configuration
 
-system:
-  headless: true
-  timeout: 30
-  auto_cleanup: true
-
-latex:
-  engine: "pdflatex"
-  interaction_mode: "batchmode"
-  font_encoding: "T1"
-
-plotting:
-  backend: "Agg"
-  dpi: 300
-  format: "png"
-  
-languages:
-  default: "english"
-  auto_detect: true
-```
-
-## 🛡️ Headless Operation Guarantees
-
-### Matplotlib Safety
 ```python
-# CRITICAL: Always set before pyplot imports
-import matplotlib
-matplotlib.use('Agg')  # Headless backend
-import matplotlib.pyplot as plt
+# Configure agent behavior
+config = {
+    "latex_engine": "pdflatex",  # or "xelatex", "lualatex"
+    "auto_compile": True,
+    "remove_quotes": True,
+    "enhance_packages": True,
+    "timeout": 30,
+    "retry_attempts": 3
+}
 
-# All plotting saves to files
-plt.figure()
-plt.plot(data)
-plt.savefig('output.png', dpi=300, bbox_inches='tight')
-plt.close()  # Cleanup
-# NEVER use plt.show() - will raise error
+agent = HWAgent(config=config)
 ```
 
-### LaTeX Compilation Safety
+## 🧪 Testing
+
 ```bash
-# All compilations use safe parameters
-pdflatex -interaction=batchmode -file-line-error -synctex=1 document.tex
-```
-
-### Resource Protection
-- **30-second timeouts** on all operations
-- **Process isolation** prevents system hangs
-- **Memory limits** prevent resource exhaustion
-- **Automatic cleanup** of temporary files
-
-## 📝 Universal LaTeX Protocol
-
-### Language Support Architecture
-```latex
-% Base template (English)
-\documentclass[11pt,a4paper]{article}
-\usepackage[T1]{fontenc}
-\usepackage[utf8]{inputenc}
-\usepackage[english]{babel}
-
-% LLM adds as needed:
-% Russian: \usepackage[T2A]{fontenc} \usepackage[russian]{babel}
-% German:  \usepackage[german]{babel}
-% French:  \usepackage[french]{babel}
-```
-
-### Document Templates
-1. **Mathematical**: `\documentclass{amsart}` for equations and proofs
-2. **Programming**: `\documentclass{article}` with `listings` package
-3. **Analysis**: `\documentclass{report}` for data analysis
-4. **Physics**: `\documentclass{article}` with `physics` package
-
-### Error Correction System
-- **Automatic Package Installation**: Missing package detection
-- **Command Correction**: Fix undefined commands
-- **Structure Repair**: Complete missing document elements
-- **Math Mode Fixing**: Proper mathematical notation
-
-## 🔍 Quality Assurance
-
-### Testing Strategy
-```bash
-# Run full test suite
+# Run comprehensive tests
 python -m pytest tests/ -v
 
-# Test specific components
-python -m pytest tests/test_headless_mode.py      # Headless operations
-python -m pytest tests/test_latex_tools.py        # LaTeX system
-python -m pytest tests/test_core_functionality.py # Core features
-python -m pytest tests/test_error_recovery.py     # Error handling
+# Test LaTeX tools specifically
+python -m pytest tests/test_latex_tools.py -v
+
+# Test quote removal functionality
+python -m pytest tests/test_quote_removal.py -v
 ```
 
-### Quality Metrics
-- **Compilation Success**: >95% automatic LaTeX compilation
-- **Error Recovery**: >90% automatic error resolution
-- **Headless Compliance**: 100% GUI-free operation
-- **Response Time**: <30s for typical tasks
+## 🔍 Troubleshooting
 
-### Validation Checklist
-- ✅ Headless backend set before plotting
-- ✅ All figures saved to files, none displayed
-- ✅ LaTeX compilation in batch mode
-- ✅ All temporary files cleaned up
-- ✅ No user interaction required
-- ✅ Error logs captured and analyzed
+### Common Issues
 
-## 🚀 Performance Optimization
+1. **LaTeX Compilation Fails**
+   - Ensure LaTeX distribution is installed
+   - Check `pdflatex --version`
+   - Verify write permissions in output directory
 
-### LaTeX Compilation
-- **Engine Selection**: Automatic optimal engine choice
-- **Package Caching**: Reduce redundant package loading
-- **Parallel Compilation**: Multiple document support
-- **Memory Management**: Efficient resource utilization
+2. **Quotes Not Removed**
+   - Check content format (should be string)
+   - Verify tool initialization
+   - Enable debug logging
 
-### Code Execution
-- **Process Isolation**: Safe execution environments
-- **Resource Monitoring**: CPU and memory tracking
-- **Result Caching**: Avoid redundant computations
-- **Timeout Management**: Prevent runaway processes
+3. **Matplotlib Display Errors**
+   - Ensure `MATPLOTLIB_BACKEND=Agg` is set
+   - Check headless mode configuration
+   - Verify no display-related code in scripts
 
-## 🔐 Security Features
+### Debug Mode
 
-### Execution Safety
-- **Input Validation**: Sanitize all inputs
-- **Command Whitelisting**: Only safe operations allowed
-- **Path Validation**: Prevent directory traversal
-- **Resource Limits**: CPU, memory, time constraints
+```python
+import logging
+logging.basicConfig(level=logging.DEBUG)
 
-### Data Protection
-- **Local Processing**: All computations local
-- **Secure API Communication**: HTTPS only
-- **Temporary File Security**: Secure cleanup
-- **Log Filtering**: Sensitive data protection
-
-## 📖 Documentation
-
-### User Guides
-- **[User Guide](./work/USER_GUIDE.md)**: Complete usage instructions
-- **[Technical Overview](./work/TECHNICAL_OVERVIEW.md)**: System architecture
-- **[LaTeX Protocol](./work/UNIVERSAL_LATEX_PROTOCOL.md)**: Documentation system
-
-### Developer Guides  
-- **[Thought Streaming](./work/THOUGHT_STREAMING_GUIDE.md)**: LLM interaction patterns
-- **[Verification](./work/VERIFICATION_REQUIREMENTS.md)**: Quality requirements
-- **[LaTeX Fixes](./work/LATEX_FIXES_SUMMARY.md)**: Error correction guide
+# Enable detailed logging for LaTeX tools
+agent = HWAgent(debug=True)
+```
 
 ## 🤝 Contributing
 
-### Development Setup
-```bash
-# Clone and setup development environment
-git clone https://github.com/your-repo/HWAgent.git
-cd HWAgent
-python -m venv venv
-source venv/bin/activate
-pip install -e .
-pip install -r requirements-dev.txt
-```
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
 
-### Code Standards
-- **Language**: English for all code and comments
-- **Python Style**: Modern Python 3.8+ features
-- **Type Hints**: Use `|` instead of `Union`, `list[T]` instead of `List[T]`
-- **Principles**: Follow KISS and DRY principles
-- **Documentation**: Comprehensive docstrings and comments
+### Development Guidelines
 
-### Testing Requirements
-- All new features must include tests
-- Maintain >90% code coverage
-- Include headless mode tests
-- Verify LaTeX compilation functionality
-
-## 📞 Support
-
-### Getting Help
-- **Documentation**: Comprehensive guides in `work/` directory
-- **Issues**: GitHub issue tracker for bugs and features
-- **Discussions**: Community forum for usage questions
-- **Support**: Direct email for critical issues
-
-### Common Issues
-- **LaTeX Errors**: Check `work/LATEX_FIXES_SUMMARY.md`
-- **Headless Problems**: Verify matplotlib backend with `matplotlib.get_backend()`
-- **API Issues**: Confirm `OPENROUTER_API_KEY` environment variable
-- **Performance**: Check timeout settings and resource limits
+- All code and comments in English
+- Use modern Python features (pattern matching, new-style typing)
+- Follow KISS and DRY principles
+- Add comprehensive tests for new features
+- Ensure LaTeX tools handle quote removal correctly
 
 ## 📄 License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-## 🎯 Project Status
+## 🙏 Acknowledgments
 
-- **Status**: Production Ready ✅
-- **Headless Compatibility**: 100% ✅  
-- **LaTeX Support**: Universal ✅
-- **Error Recovery**: Advanced ✅
-- **Performance**: Optimized ✅
+- LaTeX community for comprehensive documentation
+- matplotlib developers for headless backend support
+- Python community for modern language features
+- Contributors who helped enhance the quote removal functionality
 
 ---
 
-**HWAgent** - Where AI meets technical excellence. Built for the headless future. 🚀
-
-### Latest Updates
-
-#### Version 2.0 - Headless-First Release
-- ✨ Complete headless operation guarantee
-- 📝 Universal LaTeX documentation system  
-- 🛡️ Advanced error recovery and timeout protection
-- 🌍 Multi-language support with English defaults
-- 🔧 Modular tool architecture
-- 📊 Enhanced plotting and visualization
-- 🧮 Advanced mathematical computing capabilities
-- 🔐 Security-focused design with input validation
-- 📈 Performance optimization and resource management
-- 📚 Comprehensive documentation and user guides 
+**HWAgent** - Making homework solutions professional, automatic, and reliable with enhanced LaTeX processing capabilities. 

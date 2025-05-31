@@ -62,7 +62,7 @@ def setup_directories():
     """Create necessary directories."""
     directories = [
         'static',
-        'hwagent/tmp'
+        'tmp'
     ]
     
     for directory in directories:

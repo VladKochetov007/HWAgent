@@ -14,8 +14,8 @@ from hwagent.core.constants import Constants
 
 class SimpleLaTeXTool(FileOperationTool):
     """
-    Simple LaTeX tool for creating and compiling documents.
-    Focuses on reliability over automatic "intelligence".
+    Simple LaTeX tool for creating and compiling documents with automatic quote removal.
+    Focuses on reliability with enhanced preprocessing and error handling.
     """
     
     @property
@@ -24,10 +24,14 @@ class SimpleLaTeXTool(FileOperationTool):
     
     @property
     def description(self) -> str:
-        return r"""Create and compile LaTeX documents with enhanced error handling.
+        return r"""Create and compile LaTeX documents with automatic quote removal and enhanced error handling.
         
-        This tool creates LaTeX files and compiles them to PDF using batchmode to prevent 
-        hanging on user input. Provides detailed error analysis for LLM processing.
+        Features:
+        - Automatic removal of unwanted quotes from beginning/end of content
+        - Enhanced mathematical package inclusion
+        - Reliable compilation with batchmode (no hanging)
+        - Structured error analysis for LLM processing
+        - Cyrillic/multilingual support
         
         Parameters:
         - filepath: Name of the LaTeX file (will be created in current directory)
@@ -35,10 +39,9 @@ class SimpleLaTeXTool(FileOperationTool):
         - compile: Whether to compile to PDF (default: true)
         
         IMPORTANT: 
-        - Content should be complete LaTeX document starting with \documentclass
+        - Content is automatically cleaned of quotes and enhanced with necessary packages
         - Use proper LaTeX escaping for special characters
-        - For Russian/Cyrillic: include proper babel and fontenc packages
-        - If compilation fails, the tool provides structured error analysis
+        - For Russian/Cyrillic: babel and fontenc packages are auto-included
         - No user interaction required - automatic error handling prevents hanging
         - Use single backslashes in LaTeX commands (e.g., \section{} not \\section{})"""
     
@@ -65,7 +68,7 @@ class SimpleLaTeXTool(FileOperationTool):
         }
     
     def _execute_impl(self, **kwargs) -> ToolExecutionResult:
-        """Execute LaTeX document creation and compilation"""
+        """Execute LaTeX document creation and compilation with quote removal"""
         
         filepath = kwargs["filepath"]
         content = kwargs["content"]
@@ -76,22 +79,31 @@ class SimpleLaTeXTool(FileOperationTool):
             if not filepath.endswith('.tex'):
                 filepath += '.tex'
             
-            # Write file directly without modifications
+            # Preprocess content: remove quotes and enhance packages
+            preprocessed_content = self._preprocess_content(content)
+            
+            # Write file with preprocessed content
             full_path = self._get_full_path(filepath)
             os.makedirs(os.path.dirname(full_path), exist_ok=True)
             
             with open(full_path, 'w', encoding='utf-8') as f:
-                f.write(content)
+                f.write(preprocessed_content)
             
             result_data = {
                 "tex_file": filepath,
                 "compiled": False,
                 "pdf_file": None,
                 "pdf_size": 0,
-                "compilation_log": ""
+                "compilation_log": "",
+                "quotes_removed": self._had_quotes_removed(content, preprocessed_content),
+                "packages_enhanced": self._had_packages_enhanced(content, preprocessed_content)
             }
             
             message = f"LaTeX document created: {filepath}"
+            if result_data["quotes_removed"]:
+                message += " [quotes removed]"
+            if result_data["packages_enhanced"]:
+                message += " [packages enhanced]"
             
             # Compile if requested
             if compile_pdf:
@@ -382,4 +394,96 @@ class SimpleLaTeXTool(FileOperationTool):
         if not errors and not missing_packages and not syntax_errors:
             analysis.append("🔧 Action: Check for system-level compilation issues")
         
-        return "\n".join(analysis) 
+        return "\n".join(analysis)
+    
+    def _preprocess_content(self, content: str) -> str:
+        """Preprocess content by removing quotes and ensuring mathematical packages"""
+        if not content:
+            return content
+        
+        # Step 1: Remove unwanted quotes from beginning and end
+        cleaned_content = self._remove_unwanted_quotes(content)
+        
+        # Step 2: Ensure mathematical packages are included
+        enhanced_content = self._ensure_mathematical_packages(cleaned_content)
+        
+        return enhanced_content
+    
+    def _remove_unwanted_quotes(self, content: str) -> str:
+        """Remove unwanted quotes from beginning and end of content"""
+        if not content:
+            return content
+        
+        # Remove different types of quotes
+        quote_chars = ["'", '"', '`']
+        
+        for quote_char in quote_chars:
+            # Remove from beginning
+            while content.startswith(quote_char):
+                content = content[1:]
+            
+            # Remove from end
+            while content.endswith(quote_char):
+                content = content[:-1]
+        
+        return content.strip()
+    
+    def _ensure_mathematical_packages(self, content: str) -> str:
+        """Ensure necessary mathematical packages are included"""
+        if not content or '\\documentclass' not in content:
+            return content
+        
+        required_packages = [
+            'amsmath', 'amsfonts', 'amssymb', 'amsthm', 
+            'mathtools', 'graphicx', 'geometry'
+        ]
+        
+        lines = content.split('\n')
+        documentclass_idx = -1
+        
+        # Find documentclass line
+        for i, line in enumerate(lines):
+            if '\\documentclass' in line:
+                documentclass_idx = i
+                break
+        
+        if documentclass_idx == -1:
+            return content
+        
+        # Check which packages are already included
+        existing_packages = set()
+        for line in lines:
+            if '\\usepackage' in line:
+                # Extract package name
+                match = re.search(r'\\usepackage(?:\[[^\]]*\])?\{([^}]+)\}', line)
+                if match:
+                    existing_packages.add(match.group(1))
+        
+        # Add missing packages after documentclass
+        insert_idx = documentclass_idx + 1
+        new_packages = []
+        
+        for package in required_packages:
+            if package not in existing_packages:
+                new_packages.append(f'\\usepackage{{{package}}}')
+        
+        if new_packages:
+            # Insert new packages after documentclass
+            lines[insert_idx:insert_idx] = new_packages
+        
+        return '\n'.join(lines)
+    
+    def _had_quotes_removed(self, original: str, processed: str) -> bool:
+        """Check if quotes were removed during processing"""
+        if len(original) != len(processed):
+            quote_chars = ["'", '"', '`']
+            for quote_char in quote_chars:
+                if (original.startswith(quote_char) or original.endswith(quote_char)):
+                    return True
+        return False
+    
+    def _had_packages_enhanced(self, original: str, processed: str) -> bool:
+        """Check if mathematical packages were added"""
+        original_packages = original.count('\\usepackage')
+        processed_packages = processed.count('\\usepackage')
+        return processed_packages > original_packages 

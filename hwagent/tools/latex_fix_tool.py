@@ -19,7 +19,14 @@ class LaTeXFixTool(BaseTool):
     
     @property
     def description(self) -> str:
-        return "Enhanced LaTeX document fix tool with intelligent double-slash correction and English defaults. Handles template regeneration with universal language support via LLM control."
+        return """Enhanced LaTeX document fix tool with automatic quote removal and intelligent error correction. 
+Features:
+- Removes unwanted quotes from beginning/end of content
+- Enhanced double-slash correction with context awareness
+- Template regeneration with universal language support
+- Automatic mathematical package inclusion
+- English defaults with LLM-controlled localization
+- Comprehensive error detection and fixing"""
     
     @property
     def parameters_schema(self) -> Dict[str, any]:
@@ -352,50 +359,89 @@ class LaTeXFixTool(BaseTool):
 \end{{document}}"""
 
     def execute(self, filepath: str, task_type: str = "general", **kwargs) -> ToolExecutionResult:
-        """
-        Enhanced LaTeX fixing with template-based generation
-        
-        Args:
-            filepath: Path to the LaTeX file to fix (relative to tmp directory)
-            task_type: Type of task (math, programming, analysis, general)
-            **kwargs: Template variables for content generation
-        """
+        """Fix LaTeX document with comprehensive error handling and quote removal"""
         try:
-            # Get full path using base class method
-            full_path = self._get_full_path(filepath)
-            
-            if not os.path.exists(full_path):
+            # Read the file
+            file_path = self._get_full_path(filepath)
+            if not os.path.exists(file_path):
                 return ToolExecutionResult.error(
                     f"File not found: {filepath}",
-                    f"The specified LaTeX file does not exist: {full_path}"
+                    f"LaTeX file {filepath} does not exist"
                 )
             
-            # Read the file
-            with open(full_path, 'r', encoding='utf-8') as f:
-                content = f.read()
+            with open(file_path, 'r', encoding='utf-8') as f:
+                original_content = f.read()
             
-            # Create backup
-            backup_path = f"{full_path}.backup"
-            with open(backup_path, 'w', encoding='utf-8') as f:
-                f.write(content)
+            # Apply comprehensive fixes including quote removal
+            fixed_content = self._comprehensive_fix_with_quotes(original_content, task_type, **kwargs)
             
-            # Apply comprehensive fixes
-            fixed_content = self._comprehensive_fix(content, task_type, **kwargs)
-            
-            # Write fixed content
-            with open(full_path, 'w', encoding='utf-8') as f:
+            # Write the fixed content back
+            with open(file_path, 'w', encoding='utf-8') as f:
                 f.write(fixed_content)
             
+            # Calculate changes
+            content_changed = original_content != fixed_content
+            quotes_removed = self._has_quotes_removed(original_content, fixed_content)
+            
             return ToolExecutionResult.success(
-                "LaTeX file successfully fixed using enhanced template-based approach",
-                f"Applied comprehensive fixes to {filepath}. Backup saved as {filepath}.backup. Used template type: {task_type}"
+                f"LaTeX document fixed: {filepath}" + 
+                (" [quotes removed]" if quotes_removed else "") +
+                (" [content enhanced]" if content_changed else ""),
+                fixed_content,
+                {
+                    "filepath": filepath,
+                    "task_type": task_type,
+                    "content_changed": content_changed,
+                    "quotes_removed": quotes_removed,
+                    "file_size": len(fixed_content.encode('utf-8'))
+                }
             )
             
         except Exception as e:
             return ToolExecutionResult.error(
-                f"Error fixing LaTeX file: {str(e)}",
+                f"Error fixing LaTeX document: {str(e)}",
                 f"Failed to fix {filepath}: {str(e)}"
             )
+    
+    def _comprehensive_fix_with_quotes(self, content: str, task_type: str, **kwargs) -> str:
+        """Apply comprehensive fixes including quote removal"""
+        
+        # Step 1: Remove quotes from beginning and end
+        content = self._remove_unwanted_quotes(content)
+        
+        # Step 2: Apply existing comprehensive fixes
+        content = self._comprehensive_fix(content, task_type, **kwargs)
+        
+        return content
+    
+    def _remove_unwanted_quotes(self, content: str) -> str:
+        """Remove unwanted quotes from beginning and end of content"""
+        if not content:
+            return content
+        
+        # Remove different types of quotes
+        quote_chars = ["'", '"', '`']
+        
+        for quote_char in quote_chars:
+            # Remove from beginning
+            while content.startswith(quote_char):
+                content = content[1:]
+            
+            # Remove from end
+            while content.endswith(quote_char):
+                content = content[:-1]
+        
+        return content.strip()
+    
+    def _has_quotes_removed(self, original: str, fixed: str) -> bool:
+        """Check if quotes were removed during processing"""
+        # Quick check - if lengths differ and quotes were at edges
+        if len(original) != len(fixed):
+            quote_chars = ["'", '"', '`']
+            for quote_char in quote_chars:
+                if (original.startswith(quote_char) or original.endswith(quote_char)):
+                    return True
+        return False
 
     def _comprehensive_fix(self, content: str, task_type: str, **kwargs) -> str:
         """Apply comprehensive LaTeX fixes"""
