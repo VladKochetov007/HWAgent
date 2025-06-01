@@ -9,9 +9,10 @@ from openai import OpenAI
 from hwagent.tool_manager import ToolManager
 from hwagent.core import (
     MessageManager, StreamingHandlerImpl, ResponseParser, 
-    ConversationManagerImpl, ToolExecutor, LLMClient, Constants, 
+    ToolExecutor, LLMClient, Constants, 
     AgentConfig, get_agent_config
 )
+from hwagent.core.session_conversation_manager import SessionConversationManager
 
 
 class SystemPromptBuilder:
@@ -92,92 +93,41 @@ MEMORY USAGE GUIDELINES:
             return ""
         
         try:
-            # Get enhanced context with memory
-            context_data = self.conversation_manager.get_enhanced_context_summary()
+            # Get session conversation summary
+            session_summary = self.conversation_manager.get_session_conversation_summary()
             
-            if not context_data:
+            if not session_summary or "no conversation history" in session_summary.lower():
                 return ""
+            
+            # Get memory status
+            memory_status = self.conversation_manager.get_memory_status()
             
             context_lines = []
             
-            # Current session context - more detailed information
-            session_context = context_data.get('session_context', {})
-            if session_context:
-                total_exchanges = session_context.get('total_exchanges', 0)
-                if total_exchanges > 0:
-                    context_lines.append(f"📋 Current Session: {total_exchanges} exchanges completed")
-                    
-                    # Task types in current session
-                    task_types = session_context.get('task_types', [])
-                    if task_types:
-                        task_str = ", ".join(task_types)
-                        context_lines.append(f"🎯 Session Task Types: {task_str}")
-                    
-                    # Success rate
-                    success_rate = session_context.get('success_rate', 0)
-                    context_lines.append(f"✅ Session Success Rate: {success_rate:.1%}")
-                    
-                    # Recent tools used
-                    tools_used = session_context.get('tools_used', [])
-                    if tools_used:
-                        tools_str = ", ".join(tools_used[:8])  # Limit to 8 tools
-                        context_lines.append(f"🔧 Session Tools Used: {tools_str}")
-            
-            # Historical context - patterns and insights
-            historical_context = context_data.get('historical_context', {})
-            if historical_context:
-                total_sessions = historical_context.get('total_sessions', 0)
-                if total_sessions > 0:
-                    context_lines.append(f"📈 Historical: {total_sessions} recent sessions")
-                    
-                    # Frequent task patterns
-                    frequent_tasks = historical_context.get('frequent_tasks', [])
-                    if frequent_tasks:
-                        # frequent_tasks is list of (task_type, count) tuples
-                        task_summary = []
-                        for task_info in frequent_tasks[:3]:  # Top 3 task types
-                            if isinstance(task_info, (list, tuple)) and len(task_info) >= 2:
-                                task_type, count = task_info[0], task_info[1]
-                                task_summary.append(f"{task_type}({count})")
-                            elif isinstance(task_info, str):
-                                task_summary.append(task_info)
-                        
-                        if task_summary:
-                            context_lines.append(f"🔄 Frequent Tasks: {', '.join(task_summary)}")
-            
-            # Context insights if available
-            insights = context_data.get('context_insights', [])
-            if insights:
-                insights_str = "; ".join(insights[:2])  # Limit to 2 key insights
-                context_lines.append(f"💡 Key Insights: {insights_str}")
-            
-            # Recent patterns from session
-            session_patterns = session_context.get('recent_patterns', [])
-            if session_patterns:
-                patterns_str = "; ".join(session_patterns[:2])  # Limit to 2 patterns
-                context_lines.append(f"🎨 Recent Patterns: {patterns_str}")
-            
-            # Memory availability status
-            memory_available = context_data.get('persistent_memory_available', False)
-            if memory_available:
-                context_lines.append("🧠 Persistent Memory: Active & Learning")
-            
-            # Add conversation continuity instruction
-            if context_lines:
-                context_lines.insert(0, "🔗 CONVERSATION CONTINUITY:")
+            # Add session context
+            if session_summary and "Session Summary" in session_summary:
+                context_lines.append("🔗 CONVERSATION CONTINUITY:")
+                context_lines.append(session_summary)
+                context_lines.append("")
+                
+                # Add memory status info
+                if memory_status.get("enabled", False):
+                    context_lines.append(f"🧠 Session Memory: Active (Type: {memory_status.get('memory_type', 'session_only')})")
+                    context_lines.append(f"📊 Session ID: {memory_status.get('session_id', 'unknown')}")
+                
                 context_lines.append("")
                 context_lines.append("MEMORY USAGE INSTRUCTIONS:")
                 context_lines.append("- Reference previous work when relevant to current task")
                 context_lines.append("- Build upon established concepts and solutions") 
                 context_lines.append("- Avoid re-explaining concepts already covered in this session")
                 context_lines.append("- Maintain consistent style and approach established in session")
-                context_lines.append("- Use memory tool if you need to search for specific past interactions")
+                context_lines.append("- Learn from recent patterns and adapt your responses")
             
             return "\n".join(context_lines) if context_lines else ""
             
         except Exception as e:
             # Don't fail if memory context retrieval fails
-            print(f"Warning: Could not retrieve memory context: {e}")
+            print(f"Warning: Could not retrieve session memory context: {e}")
             return ""
 
     def _format_tools_for_prompt(self) -> str:
@@ -249,7 +199,7 @@ class IterationProcessor:
         self.tool_executor = tool_executor
         self.display_manager = display_manager
     
-    def process_iteration(self, iteration: int, conversation_manager: ConversationManagerImpl, 
+    def process_iteration(self, iteration: int, conversation_manager: SessionConversationManager, 
                          tools_for_api: list[dict[str, Any]]) -> str | None:
         """
         Process a single iteration of the ReAct loop.
@@ -300,7 +250,7 @@ class IterationProcessor:
             return self._handle_iteration_error(e, conversation_manager)
     
     def _handle_parsed_response(self, assistant_message: Any, parsed_response: Any, 
-                               conversation_manager: ConversationManagerImpl) -> str | None:
+                               conversation_manager: SessionConversationManager) -> str | None:
         """Handle parsed response based on its type."""
         agent_config = get_agent_config()
         debug_enabled = agent_config.is_debug_enabled()
@@ -339,7 +289,7 @@ class IterationProcessor:
                 print(f"[DEBUG] IterationProcessor: No clear action, handling no action response")
             return self._handle_no_action_response(assistant_message.content, conversation_manager)
     
-    def _handle_malformed_tool_call(self, parsed_response: Any, conversation_manager: ConversationManagerImpl) -> None:
+    def _handle_malformed_tool_call(self, parsed_response: Any, conversation_manager: SessionConversationManager) -> None:
         """Handle malformed tool calls with corrective feedback."""
         tool_name = parsed_response.tool_call_name
         
@@ -351,7 +301,7 @@ class IterationProcessor:
         print(corrective_feedback)
         conversation_manager.add_system_note(corrective_feedback)
     
-    def _handle_no_action_response(self, content: str, conversation_manager: ConversationManagerImpl) -> str | None:
+    def _handle_no_action_response(self, content: str, conversation_manager: SessionConversationManager) -> str | None:
         """Handle response with no clear action."""
         agent_config = get_agent_config()
         debug_enabled = agent_config.is_debug_enabled()
@@ -395,7 +345,7 @@ class IterationProcessor:
             conversation_manager.add_system_note(system_note)
             return None  # Return None to continue iterations instead of terminating
     
-    def _is_repetitive_question(self, content: str, conversation_manager: ConversationManagerImpl) -> bool:
+    def _is_repetitive_question(self, content: str, conversation_manager: SessionConversationManager) -> bool:
         """Check if the agent is asking the same question repeatedly."""
         content_lower = content.lower()
         
@@ -424,7 +374,7 @@ class IterationProcessor:
         
         return False
     
-    def _handle_repetitive_request(self, content: str, conversation_manager: ConversationManagerImpl) -> str | None:
+    def _handle_repetitive_request(self, content: str, conversation_manager: SessionConversationManager) -> str | None:
         """Handle repetitive requests by making intelligent assumptions."""
         history = conversation_manager.get_conversation_history()
         
@@ -559,7 +509,7 @@ class IterationProcessor:
         
         return False
     
-    def _handle_iteration_error(self, error: Exception, conversation_manager: ConversationManagerImpl) -> str:
+    def _handle_iteration_error(self, error: Exception, conversation_manager: SessionConversationManager) -> str:
         """Handle errors during iteration processing."""
         error_msg = str(error)
         
@@ -613,7 +563,7 @@ class ReActAgent:
         
         # Initialize core components
         self.message_manager = MessageManager()
-        self.conversation_manager = ConversationManagerImpl(self.message_manager)
+        self.conversation_manager = SessionConversationManager(self.message_manager)
         self.llm_client = LLMClient(client, model_name, self.message_manager, enable_streaming)
         
         # Initialize specialized components
