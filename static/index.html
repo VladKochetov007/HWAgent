@@ -87,10 +87,10 @@
                             </div>
                             <div id="tmpFilePreview" class="file-preview">
                                 <div class="file-preview-header">
-                                    <span id="previewFileName">Select a file to preview</span>
-                                    <button id="closePreviewBtn" title="Close Preview"><i class="fas fa-times"></i></button>
+                                    <span id="tmpPreviewFileName">Select a file to preview</span>
+                                    <button id="tmpClosePreviewBtn" title="Close Preview"><i class="fas fa-times"></i></button>
                                 </div>
-                                <pre id="previewFileContent"></pre>
+                                <pre id="tmpPreviewFileContent"></pre>
                             </div>
                         </div>
                     </div>
@@ -196,19 +196,11 @@
                         </div>
                     </div>
                     <div class="input-help">
-                        Press <kbd>Ctrl+Enter</kbd> to send • <kbd>Shift+Enter</kbd> for new line
+                        Press <kbd>Enter</kbd> to send • <kbd>Shift+Enter</kbd> for new line
                     </div>
                 </div>
             </div>
         </main>
-
-        <!-- Loading Overlay -->
-        <div class="loading-overlay" id="loadingOverlay">
-            <div class="loading-spinner">
-                <i class="fas fa-robot fa-spin"></i>
-                <p>Initializing HWAgent...</p>
-            </div>
-        </div>
 
         <!-- Error Modal -->
         <div class="modal-overlay" id="errorModal">
@@ -228,6 +220,9 @@
             </div>
         </div>
     </div>
+
+    <!-- File Preview Overlay -->
+    <div id="filePreviewOverlay" class="file-preview-overlay"></div>
 
     <!-- File Preview Panel -->
     <div id="filePreview" class="file-preview">

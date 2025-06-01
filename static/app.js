@@ -25,22 +25,7 @@ class HWAgentApp {
      */
     async init() {
         this.cacheElements();
-        this.setupEventListeners();
-        
-        // Initialize session first
-        await this.initializeSession();
-        
-        // Then setup WebSocket
-        this.initializeWebSocket();
-        
-        // Initialize TMP Explorer
-        this.initializeTmpExplorer();
-        
-        // Load tools and hide loading
-        await this.loadTools();
-        this.hideLoadingOverlay();
-        
-        this.isInitialized = true;
+        await this.initialize();
     }
     
     /**
@@ -49,10 +34,26 @@ class HWAgentApp {
     cacheElements() {
         // Chat elements
         this.elements = {
-            // Main containers
             chatMessages: document.getElementById('chatMessages'),
             messageInput: document.getElementById('messageInput'),
             sendButton: document.getElementById('sendButton'),
+            attachButton: document.getElementById('attachButton'),
+            typingIndicator: document.getElementById('typingIndicator'),
+            connectionStatus: document.getElementById('connectionStatus'),
+            connectionText: document.getElementById('connectionText'),
+            streamingToggle: document.getElementById('streamingToggle'),
+            autoScrollToggle: document.getElementById('autoScrollToggle'),
+            clearContextBtn: document.getElementById('clearContextBtn'),
+            exportChatBtn: document.getElementById('exportChatBtn'),
+            errorModal: document.getElementById('errorModal'),
+            errorMessage: document.getElementById('errorMessage'),
+            errorModalClose: document.getElementById('errorModalClose'),
+            errorModalOk: document.getElementById('errorModalOk'),
+            toolsList: document.getElementById('toolsList'),
+            sessionInfo: document.getElementById('sessionInfo'),
+            sessionId: document.getElementById('sessionId'),
+            messageCount: document.getElementById('messageCount'),
+            sessionStatus: document.getElementById('sessionStatus'),
             
             // Sidebar elements
             sidebar: document.querySelector('.sidebar'),
@@ -61,45 +62,26 @@ class HWAgentApp {
             sidebarOverlay: document.getElementById('sidebarOverlay'),
             
             // Settings
-            streamingToggle: document.getElementById('streamingToggle'),
-            autoScrollToggle: document.getElementById('autoScrollToggle'),
+            sidebarResizer: document.querySelector('.sidebar-resizer'),
             
             // Action buttons
-            clearContextBtn: document.getElementById('clearContextBtn'),
-            exportChatBtn: document.getElementById('exportChatBtn'),
+            tmpDirectoryExplorer: document.getElementById('tmpDirectoryExplorer'),
             
             // UI elements
-            loadingOverlay: document.getElementById('loadingOverlay'),
-            typingIndicator: document.getElementById('typingIndicator'),
-            
-            // Session info
-            sessionId: document.getElementById('sessionId'),
-            messageCount: document.getElementById('messageCount'),
-            sessionStatus: document.getElementById('sessionStatus'),
-            connectionStatus: document.getElementById('connectionStatus'),
-            connectionText: document.getElementById('connectionText'),
-            
-            // Error modal
-            errorModal: document.getElementById('errorModal'),
-            errorModalClose: document.getElementById('errorModalClose'),
-            errorModalOk: document.getElementById('errorModalOk'),
-            errorMessage: document.getElementById('errorMessage'),
             
             // TMP directory elements
             tmpFileList: document.getElementById('tmpFileList'),
             tmpCurrentPath: document.getElementById('tmpCurrentPath'),
-            tmpUpBtn: document.getElementById('tmpUpBtn'),
             tmpRefreshBtn: document.getElementById('tmpRefreshBtn'),
-            tmpClosePreviewBtn: document.getElementById('closePreviewBtn'),
+            tmpUpBtn: document.getElementById('tmpUpBtn'),
             tmpFilePreview: document.getElementById('tmpFilePreview'),
-            tmpPreviewFileName: document.getElementById('previewFileName'),
-            tmpPreviewFileContent: document.getElementById('previewFileContent'),
+            tmpPreviewFileName: document.getElementById('tmpPreviewFileName'),
+            tmpPreviewFileContent: document.getElementById('tmpPreviewFileContent'),
+            tmpClosePreviewBtn: document.getElementById('tmpClosePreviewBtn'),
             
-            // Tools
-            toolsList: document.getElementById('toolsList'),
-            
-            // File Preview Panel
+            // File Preview Panel (separate from sidebar)
             filePreview: document.getElementById('filePreview'),
+            filePreviewOverlay: document.getElementById('filePreviewOverlay'),
             previewFileName: document.getElementById('previewFileName'),
             previewFileContent: document.getElementById('previewFileContent'),
             closePreviewBtn: document.getElementById('closePreviewBtn')
@@ -115,9 +97,12 @@ class HWAgentApp {
         
         // Message input
         this.elements.messageInput.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+            if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
-                this.sendMessage();
+                // Only send if initialized and send button is not disabled
+                if (this.isInitialized && !this.elements.sendButton.disabled) {
+                    this.sendMessage();
+                }
             }
         });
         
@@ -169,8 +154,22 @@ class HWAgentApp {
         // Setup sidebar toggle functionality
         this.setupSidebarToggle();
 
-        // File preview panel
-        this.elements.closePreviewBtn.addEventListener('click', () => this.closeFilePreview());
+        // File preview panel close button
+        if (this.elements.closePreviewBtn) {
+            this.elements.closePreviewBtn.addEventListener('click', () => this.closeFilePreview());
+        }
+        
+        // Close file preview with Escape key
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && this.elements.filePreview?.classList.contains('active')) {
+                this.closeFilePreview();
+            }
+        });
+        
+        // Close file preview when clicking on overlay
+        if (this.elements.filePreviewOverlay) {
+            this.elements.filePreviewOverlay.addEventListener('click', () => this.closeFilePreview());
+        }
     }
     
     /**
@@ -307,8 +306,8 @@ class HWAgentApp {
         const message = this.elements.messageInput.value.trim();
         if (!message) return;
         
+        // Silently ignore if not initialized yet
         if (!this.isInitialized) {
-            this.showError('Application is still initializing. Please wait...');
             return;
         }
 
@@ -339,12 +338,13 @@ class HWAgentApp {
         const messageInput = this.elements.messageInput;
         
         if (isLoading) {
+            // Allow typing but disable sending
             sendButton.disabled = true;
             sendButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
             sendButton.classList.add('loading');
-            messageInput.disabled = true;
-            messageInput.placeholder = 'Waiting for response...';
-            messageInput.classList.add('loading');
+            // Keep input enabled for typing
+            messageInput.disabled = false;
+            messageInput.placeholder = 'Agent is thinking... (you can continue typing)';
         } else {
             sendButton.disabled = false;
             sendButton.innerHTML = '<i class="fas fa-paper-plane"></i>';
@@ -366,7 +366,6 @@ class HWAgentApp {
         }
 
         try {
-            this.showTypingIndicator();
             this.updateSessionStatus('Processing...');
             
             const response = await fetch(`/api/sessions/${this.sessionId}/messages`, {
@@ -389,7 +388,6 @@ class HWAgentApp {
             console.error('Failed to send message:', error);
             this.showError('Failed to send message: ' + error.message);
         } finally {
-            this.hideTypingIndicator();
             this.updateSessionStatus('Ready');
             this.setSendButtonLoading(false);
         }
@@ -763,15 +761,6 @@ class HWAgentApp {
     }
     
     /**
-     * Hide loading overlay
-     */
-    hideLoadingOverlay() {
-        setTimeout(() => {
-            this.elements.loadingOverlay.classList.add('hidden');
-        }, 1500);
-    }
-    
-    /**
      * Get current time string
      */
     getCurrentTime() {
@@ -872,30 +861,88 @@ class HWAgentApp {
 
             const content = await response.text();
             
-            // Update preview panel
-            this.elements.previewFileName.textContent = filePath;
+            // Update preview panel - use the main file preview panel, not sidebar elements
+            if (this.elements.previewFileName) {
+                this.elements.previewFileName.textContent = filePath;
+            }
             
             // Handle different file types
             const fileExtension = filePath.split('.').pop().toLowerCase();
             
-            if (['pdf', 'png', 'jpg', 'jpeg', 'gif', 'svg'].includes(fileExtension)) {
-                // For binary files, show a link to open in new tab
-                this.elements.previewFileContent.innerHTML = `
-                    <div style="text-align: center; padding: 2rem;">
-                        <i class="fas fa-file-${fileExtension === 'pdf' ? 'pdf' : 'image'}" style="font-size: 3rem; color: var(--primary-color); margin-bottom: 1rem;"></i>
-                        <p>This is a binary file. Click the link below to view it:</p>
-                        <a href="/api/fs/tmp/get?path=${encodeURIComponent(filePath)}" target="_blank" class="btn" style="display: inline-block; margin-top: 1rem;">
-                            <i class="fas fa-external-link-alt"></i> Open in new tab
-                        </a>
-                    </div>
-                `;
+            if (fileExtension === 'pdf') {
+                // For PDF files, show embedded viewer
+                if (this.elements.previewFileContent) {
+                    // Remove text-content class for media display
+                    this.elements.previewFileContent.className = '';
+                    this.elements.previewFileContent.innerHTML = `
+                        <div style="height: 100%; display: flex; flex-direction: column;">
+                            <div style="text-align: center; padding: 1rem; background: var(--background-color); border-bottom: 1px solid var(--border-color); flex-shrink: 0;">
+                                <i class="fas fa-file-pdf" style="color: #dc3545; margin-right: 0.5rem;"></i>
+                                <span style="font-weight: 500;">${filePath}</span>
+                                <a href="/api/fs/tmp/get?path=${encodeURIComponent(filePath)}" target="_blank" 
+                                   style="margin-left: 1rem; color: var(--primary-color); text-decoration: none;">
+                                    <i class="fas fa-external-link-alt"></i> Open in new tab
+                                </a>
+                            </div>
+                            <embed 
+                                src="/api/fs/tmp/get?path=${encodeURIComponent(filePath)}" 
+                                type="application/pdf" 
+                                style="width: 100%; flex: 1; border: none; min-height: 0;"
+                                title="PDF Preview">
+                                <div style="text-align: center; padding: 2rem;">
+                                    <p>Your browser doesn't support PDF viewing. <a href="/api/fs/tmp/get?path=${encodeURIComponent(filePath)}" target="_blank">Click here to download and open the PDF</a></p>
+                                </div>
+                            </embed>
+                        </div>
+                    `;
+                }
+            } else if (['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp', 'bmp'].includes(fileExtension)) {
+                // For image files, show embedded image viewer
+                if (this.elements.previewFileContent) {
+                    // Remove text-content class for media display
+                    this.elements.previewFileContent.className = '';
+                    this.elements.previewFileContent.innerHTML = `
+                        <div style="height: 100%; display: flex; flex-direction: column;">
+                            <div style="text-align: center; padding: 1rem; background: var(--background-color); border-bottom: 1px solid var(--border-color);">
+                                <i class="fas fa-file-image" style="color: var(--success-color); margin-right: 0.5rem;"></i>
+                                <span style="font-weight: 500;">${filePath}</span>
+                                <a href="/api/fs/tmp/get?path=${encodeURIComponent(filePath)}" target="_blank" 
+                                   style="margin-left: 1rem; color: var(--primary-color); text-decoration: none;">
+                                    <i class="fas fa-external-link-alt"></i> Open in new tab
+                                </a>
+                            </div>
+                            <div style="flex: 1; display: flex; align-items: center; justify-content: center; padding: 1rem; overflow: auto; background: #f8f9fa;">
+                                <img 
+                                    src="/api/fs/tmp/get?path=${encodeURIComponent(filePath)}" 
+                                    alt="${filePath}"
+                                    style="max-width: 100%; max-height: 100%; object-fit: contain; border-radius: 4px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);"
+                                    onload="this.style.opacity = '1'"
+                                    onerror="this.style.display = 'none'; this.nextElementSibling.style.display = 'block';"
+                                    style="opacity: 0; transition: opacity 0.3s ease;">
+                                <div style="display: none; text-align: center; color: var(--text-muted);">
+                                    <i class="fas fa-exclamation-triangle" style="font-size: 2rem; margin-bottom: 1rem;"></i>
+                                    <p>Could not load image</p>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                }
             } else {
                 // For text files, show content with syntax highlighting
-                this.elements.previewFileContent.textContent = content;
+                if (this.elements.previewFileContent) {
+                    // Add text-content class for proper styling
+                    this.elements.previewFileContent.className = 'text-content';
+                    this.elements.previewFileContent.textContent = content;
+                }
             }
             
             // Show the preview panel
-            this.elements.filePreview.classList.add('active');
+            if (this.elements.filePreview) {
+                this.elements.filePreview.classList.add('active');
+            }
+            if (this.elements.filePreviewOverlay) {
+                this.elements.filePreviewOverlay.classList.add('active');
+            }
             
         } catch (error) {
             console.error('Error viewing file:', error);
@@ -915,7 +962,7 @@ class HWAgentApp {
             const data = await response.json();
             this.showNotification(data.message || 'Successfully deleted.', 'success');
             this.loadTmpFiles(this.currentTmpPath); // Refresh the list
-            this.closeTmpFilePreview(); // Close preview if deleted file was open
+            this.closeFilePreview(); // Close preview if deleted file was open
         } catch (error) {
             console.error('Error deleting TMP file/folder:', error);
             this.showError(`Failed to delete: ${error.message}`);
@@ -929,7 +976,10 @@ class HWAgentApp {
     }
 
     closeTmpFilePreview() {
-        this.elements.filePreview.classList.remove('active');
+        // Close the TMP sidebar preview (not used anymore since we use main panel)
+        if (this.elements.tmpFilePreview) {
+            this.elements.tmpFilePreview.classList.remove('active');
+        }
     }
 
     /**
@@ -1391,7 +1441,60 @@ class HWAgentApp {
 
     // New method for closing file preview
     closeFilePreview() {
-        this.closeTmpFilePreview();
+        if (this.elements.filePreview) {
+            this.elements.filePreview.classList.remove('active');
+        }
+        if (this.elements.filePreviewOverlay) {
+            this.elements.filePreviewOverlay.classList.remove('active');
+        }
+    }
+
+    // New method to disable send button during initialization
+    setSendButtonInitializing(isInitializing) {
+        const sendButton = this.elements.sendButton;
+        const messageInput = this.elements.messageInput;
+        
+        if (isInitializing) {
+            // Disable only sending, keep input available for typing
+            sendButton.disabled = true;
+            sendButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+            sendButton.classList.add('loading');
+            messageInput.disabled = false; // Keep input enabled
+            messageInput.placeholder = 'Initializing agent... (you can type here)';
+        } else {
+            sendButton.disabled = false;
+            sendButton.innerHTML = '<i class="fas fa-paper-plane"></i>';
+            sendButton.classList.remove('loading');
+            messageInput.disabled = false;
+            messageInput.placeholder = 'Type your message here... (Shift+Enter for new line)';
+            messageInput.classList.remove('loading');
+        }
+    }
+
+    async initialize() {
+        // Disable only send button during initialization
+        this.setSendButtonInitializing(true);
+        
+        this.setupEventListeners();
+        
+        // Initialize session first
+        await this.initializeSession();
+        
+        // Then setup WebSocket
+        this.initializeWebSocket();
+        
+        // Initialize TMP Explorer
+        this.initializeTmpExplorer();
+        
+        // Load tools
+        await this.loadTools();
+        
+        // Focus on message input
+        this.elements.messageInput.focus();
+        
+        // Re-enable send button after initialization
+        this.setSendButtonInitializing(false);
+        this.isInitialized = true;
     }
 }
 
