@@ -63,7 +63,7 @@ class HWAgentApp {
             themeToggleBtn: document.getElementById('themeToggleBtn'),
             
             // Settings
-            sidebarResizer: document.querySelector('.sidebar-resizer'),
+            sidebarResizer: document.getElementById('sidebarResizer'),
             
             // Action buttons
             tmpDirectoryExplorer: document.getElementById('tmpDirectoryExplorer'),
@@ -75,16 +75,16 @@ class HWAgentApp {
             tmpCurrentPath: document.getElementById('tmpCurrentPath'),
             tmpRefreshBtn: document.getElementById('tmpRefreshBtn'),
             tmpUpBtn: document.getElementById('tmpUpBtn'),
-            tmpFilePreview: document.getElementById('tmpFilePreview'),
-            tmpPreviewFileName: document.getElementById('tmpPreviewFileName'),
-            tmpPreviewFileContent: document.getElementById('tmpPreviewFileContent'),
-            tmpClosePreviewBtn: document.getElementById('tmpClosePreviewBtn'),
             
             // File Preview Panel (separate from sidebar)
-            filePreview: document.getElementById('filePreview'),
+            filePreviewPanel: document.getElementById('filePreview'),
             previewFileName: document.getElementById('previewFileName'),
             previewFileContent: document.getElementById('previewFileContent'),
-            closePreviewBtn: document.getElementById('closePreviewBtn')
+            closePreviewBtn: document.getElementById('closePreviewBtn'),
+            filePreviewResizer: document.getElementById('filePreviewResizer'),
+            
+            // Chat container
+            chatContainer: document.querySelector('.chat-container')
         };
     }
     
@@ -141,9 +141,6 @@ class HWAgentApp {
         if (this.elements.tmpRefreshBtn) {
             this.elements.tmpRefreshBtn.addEventListener('click', () => this.loadTmpFiles(this.currentTmpPath));
         }
-        if (this.elements.tmpClosePreviewBtn) {
-            this.elements.tmpClosePreviewBtn.addEventListener('click', () => this.closeTmpFilePreview());
-        }
 
         // Setup collapsible sections
         this.setupCollapsibleSections();
@@ -161,7 +158,7 @@ class HWAgentApp {
         
         // Close file preview with Escape key
         document.addEventListener('keydown', (e) => {
-            if (e.key === 'Escape' && this.elements.filePreview?.classList.contains('active')) {
+            if (e.key === 'Escape' && this.elements.filePreviewPanel?.classList.contains('active')) {
                 this.closeFilePreview();
             }
         });
@@ -489,6 +486,7 @@ class HWAgentApp {
      */
     showTypingIndicator() {
         this.elements.typingIndicator.classList.add('active');
+        this.adjustChatElementsPosition();
         if (this.autoScrollEnabled) {
             this.scrollToBottom();
         }
@@ -870,11 +868,11 @@ class HWAgentApp {
             // Handle different file types
             const fileExtension = filePath.split('.').pop().toLowerCase();
             
-            if (fileExtension === 'pdf') {
-                // For PDF files, show embedded viewer
+            if (['pdf'].includes(fileExtension)) {
+                // For PDF files, show embedded PDF viewer
                 if (this.elements.previewFileContent) {
-                    // Remove text-content class for media display
-                    this.elements.previewFileContent.className = '';
+                    // Add pdf-content class for proper styling
+                    this.elements.previewFileContent.className = 'pdf-content preview-content-area';
                     this.elements.previewFileContent.innerHTML = `
                         <object data="/api/fs/tmp/get?path=${encodeURIComponent(filePath)}#toolbar=0" 
                                 type="application/pdf" 
@@ -922,21 +920,24 @@ class HWAgentApp {
                 // For text files, show content with syntax highlighting
                 if (this.elements.previewFileContent) {
                     // Add text-content class for proper styling
-                    this.elements.previewFileContent.className = 'text-content';
+                    this.elements.previewFileContent.className = 'text-content preview-content-area';
                     this.elements.previewFileContent.textContent = content;
                 }
             }
             
             // Show the preview panel and push main content left
-            if (this.elements.filePreview) {
-                this.elements.filePreview.classList.add('active');
+            const mainContent = document.querySelector('.main-content');
+            if (this.elements.filePreviewPanel) {
+                this.elements.filePreviewPanel.classList.add('active');
+                if(mainContent) mainContent.classList.add('file-preview-active');
             }
             
             // Add class to main-content to push it left
-            const mainContent = document.querySelector('.main-content');
-            if (mainContent) {
-                mainContent.classList.add('file-preview-open');
-            }
+            // const mainContent = document.querySelector('.main-content'); // duplicate
+            // if (mainContent) { // duplicate
+                // mainContent.classList.add('file-preview-open'); // deprecated class
+            // }
+            this.adjustLayoutForPreview();
             
         } catch (error) {
             console.error('Error viewing file:', error);
@@ -967,6 +968,7 @@ class HWAgentApp {
         if (!this.currentTmpPath) return;
         const parentPath = this.currentTmpPath.substring(0, this.currentTmpPath.lastIndexOf('/'));
         this.loadTmpFiles(parentPath);
+        this.adjustChatElementsPosition();
     }
 
     closeTmpFilePreview() {
@@ -1075,48 +1077,120 @@ class HWAgentApp {
         const toggleBtn = this.elements.sidebarToggle;
         const container = this.elements.chatContainer;
         
-        if (!sidebar || !resizer || !container) return;
+        console.log('Setting up resizers:', {
+            sidebar: !!sidebar,
+            resizer: !!resizer,
+            container: !!container,
+            filePreviewPanel: !!this.elements.filePreviewPanel,
+            filePreviewResizer: !!this.elements.filePreviewResizer
+        });
+        
+        if (!sidebar || !resizer || !container) {
+            console.warn('Missing elements for sidebar resizer:', { sidebar, resizer, container });
+            return;
+        }
 
         let isResizing = false;
-        let startX, startWidth;
+        let startX, startWidthSidebar, startWidthPreview;
 
-        // Resizer drag functionality
-        resizer.addEventListener('mousedown', (e) => {
-            isResizing = true;
-            startX = e.clientX;
-            startWidth = parseInt(window.getComputedStyle(sidebar).width, 10);
-            document.addEventListener('mousemove', handleResize);
-            document.addEventListener('mouseup', stopResize);
-            document.body.style.cursor = 'col-resize';
-            e.preventDefault();
-        });
+        // Resizer drag functionality for sidebar
+        if (resizer) {
+            resizer.addEventListener('mousedown', (e) => {
+                isResizing = true;
+                startX = e.clientX;
+                startWidthSidebar = parseInt(window.getComputedStyle(sidebar).width, 10);
+                document.body.style.cursor = 'col-resize';
+                document.addEventListener('mousemove', handleSidebarResize);
+                document.addEventListener('mouseup', stopSidebarResize);
+                e.preventDefault();
+            });
+        }
 
-        const handleResize = (e) => {
+        const handleSidebarResize = (e) => {
             if (!isResizing) return;
             
-            const width = startWidth + (e.clientX - startX);
-            const minWidth = 280;
-            const maxWidth = Math.min(600, window.innerWidth * 0.5);
+            const dx = e.clientX - startX;
+            let newWidth = startWidthSidebar + dx;
             
-            if (width >= minWidth && width <= maxWidth) {
-                // Update sidebar width
-                sidebar.style.width = width + 'px';
-                document.documentElement.style.setProperty('--sidebar-width', width + 'px');
-                
-                // Update dependent elements positions
-                this.updateLayoutPositions(width);
-                
-                // Save width to localStorage
-                localStorage.setItem('sidebarWidth', width);
-            }
+            const minSidebarWidth = parseInt(getComputedStyle(sidebar).minWidth, 10) || 200;
+            const maxSidebarWidth = window.innerWidth * 0.5; // Example max
+
+            newWidth = Math.max(minSidebarWidth, Math.min(newWidth, maxSidebarWidth));
+            
+            sidebar.style.width = newWidth + 'px';
+            document.documentElement.style.setProperty('--sidebar-width', newWidth + 'px');
+            this.adjustChatElementsPosition();
         };
 
-        const stopResize = () => {
+        const stopSidebarResize = () => {
+            if (!isResizing) return;
             isResizing = false;
-            document.removeEventListener('mousemove', handleResize);
-            document.removeEventListener('mouseup', stopResize);
+            document.removeEventListener('mousemove', handleSidebarResize);
+            document.removeEventListener('mouseup', stopSidebarResize);
             document.body.style.cursor = '';
+            localStorage.setItem('sidebarWidth', sidebar.style.width);
         };
+
+        // Resizer for File Preview Panel
+        const filePreviewPanel = this.elements.filePreviewPanel;
+        const filePreviewResizer = this.elements.filePreviewResizer;
+        let isResizingPreview = false;
+
+        console.log('File preview resizer setup:', {
+            filePreviewPanel: !!filePreviewPanel,
+            filePreviewResizer: !!filePreviewResizer,
+            panelElement: filePreviewPanel,
+            resizerElement: filePreviewResizer
+        });
+
+        // Define resize handlers before using them
+        const handlePreviewResize = (e) => {
+            console.log('Preview resize mousemove', {
+                clientX: e.clientX,
+                startX: startX,
+                startWidthPreview: startWidthPreview
+            });
+            if (!isResizingPreview) return;
+            
+            // For right-side panel: moving left increases width, moving right decreases width
+            const dx = startX - e.clientX;  // Positive when moving left
+            const newWidth = Math.max(200, Math.min(window.innerWidth * 0.6, startWidthPreview + dx));
+            
+            console.log('New preview width:', newWidth);
+            filePreviewPanel.style.width = newWidth + 'px';
+            document.documentElement.style.setProperty('--file-preview-width', newWidth + 'px');
+            this.adjustChatElementsPosition();
+        };
+
+        const stopPreviewResize = () => {
+            if (!isResizingPreview) return;
+            console.log('Stopping preview resize');
+            isResizingPreview = false;
+            document.removeEventListener('mousemove', handlePreviewResize);
+            document.removeEventListener('mouseup', stopPreviewResize);
+            document.body.style.cursor = '';
+            localStorage.setItem('filePreviewWidth', filePreviewPanel.style.width);
+        };
+
+        if (filePreviewPanel && filePreviewResizer) {
+            console.log('Adding mousedown listener to file preview resizer');
+            filePreviewResizer.addEventListener('mousedown', (e) => {
+                console.log('File preview resizer mousedown triggered', {
+                    isActive: filePreviewPanel.classList.contains('active'),
+                    clientX: e.clientX
+                });
+                if (!filePreviewPanel.classList.contains('active')) return;
+                isResizingPreview = true;
+                startX = e.clientX;
+                startWidthPreview = parseInt(window.getComputedStyle(filePreviewPanel).width, 10);
+                document.body.style.cursor = 'col-resize';
+                document.addEventListener('mousemove', handlePreviewResize);
+                document.addEventListener('mouseup', stopPreviewResize);
+                e.preventDefault();
+            });
+        } else {
+            console.warn('File preview resizer elements not found');
+        }
 
         // Toggle button functionality
         if (toggleBtn) {
@@ -1126,17 +1200,17 @@ class HWAgentApp {
                 if (isCollapsed) {
                     // Expand
                     sidebar.classList.remove('collapsed');
-                    const savedWidth = localStorage.getItem('sidebarWidth') || '300';
-                    const width = parseInt(savedWidth);
+                    const savedWidth = localStorage.getItem('sidebarWidth') || '300px';
+                    const width = parseInt(savedWidth, 10);
                     sidebar.style.width = width + 'px';
                     document.documentElement.style.setProperty('--sidebar-width', width + 'px');
-                    this.updateLayoutPositions(width);
+                    this.adjustChatElementsPosition();
                     localStorage.setItem('sidebarCollapsed', 'false');
                 } else {
                     // Collapse
                     sidebar.classList.add('collapsed');
                     document.documentElement.style.setProperty('--sidebar-width', '60px');
-                    this.updateLayoutPositions(60);
+                    this.adjustChatElementsPosition();
                     localStorage.setItem('sidebarCollapsed', 'true');
                 }
             });
@@ -1149,40 +1223,61 @@ class HWAgentApp {
         if (isCollapsed) {
             sidebar.classList.add('collapsed');
             document.documentElement.style.setProperty('--sidebar-width', '60px');
-            this.updateLayoutPositions(60);
+            this.adjustChatElementsPosition();
         } else if (savedWidth) {
-            const width = parseInt(savedWidth);
+            const width = parseInt(savedWidth, 10);
             sidebar.style.width = width + 'px';
             document.documentElement.style.setProperty('--sidebar-width', width + 'px');
-            this.updateLayoutPositions(width);
+            this.adjustChatElementsPosition();
         } else {
             // Default width
-            document.documentElement.style.setProperty('--sidebar-width', '300px');
-            this.updateLayoutPositions(300);
+            const defaultSidebarWidth = 300;
+            sidebar.style.width = defaultSidebarWidth + 'px';
+            document.documentElement.style.setProperty('--sidebar-width', defaultSidebarWidth + 'px');
+            this.adjustChatElementsPosition();
         }
+
+        // Load saved preview panel width
+        const savedPreviewWidth = localStorage.getItem('filePreviewWidth');
+        if (savedPreviewWidth && filePreviewPanel) {
+            filePreviewPanel.style.width = savedPreviewWidth;
+            document.documentElement.style.setProperty('--file-preview-width', savedPreviewWidth);
+        }
+        this.adjustChatElementsPosition(); // Initial adjustment
     }
 
     /**
-     * Update layout positions for all dependent elements
+     * Adjusts positions of chat input and typing indicator based on current layout.
      */
-    updateLayoutPositions(sidebarWidth) {
-        const chatContainer = this.elements.chatContainer;
-        const inputContainer = document.querySelector('.chat-input-container');
-        const typingIndicator = document.querySelector('.typing-indicator');
-        
-        // Update chat container position
-        if (chatContainer) {
-            chatContainer.style.left = sidebarWidth + 'px';
+    adjustChatElementsPosition() {
+        const sidebarWidth = this.elements.sidebar.offsetWidth;
+        let previewPanelWidth = 0;
+        if (this.elements.filePreviewPanel.classList.contains('active')) {
+            previewPanelWidth = this.elements.filePreviewPanel.offsetWidth;
+        }
+
+        const chatContainerEffectiveWidth = window.innerWidth - sidebarWidth - previewPanelWidth;
+        const chatContainerLeftOffset = sidebarWidth;
+
+        if (this.elements.typingIndicator) {
+            this.elements.typingIndicator.style.left = `${chatContainerLeftOffset}px`;
+            this.elements.typingIndicator.style.width = `${chatContainerEffectiveWidth}px`;
+        }
+        const chatInputContainer = document.querySelector('.chat-input-container');
+        if (chatInputContainer) {
+            // It's already relative to chat-container, so width 100% is fine.
+            // No need to set left or width explicitly if it's a block element inside chat-container
         }
         
-        // Update input container position
-        if (inputContainer) {
-            inputContainer.style.left = sidebarWidth + 'px';
-        }
-        
-        // Update typing indicator position
-        if (typingIndicator) {
-            typingIndicator.style.left = sidebarWidth + 'px';
+        // Adjust header's status indicator positioning
+        const statusIndicatorContainer = document.querySelector('.app-header .status-indicator');
+        if (statusIndicatorContainer) {
+            if (previewPanelWidth > 0) {
+                // This needs careful styling. Assuming status-indicator is on the right of header-content.
+                // We might need to adjust a margin or width of an element within the header
+                // or accept that it might be overlapped on very narrow screens when preview is open.
+                // A robust solution would involve making the header content aware of the preview panel width.
+            }
         }
     }
 
@@ -1217,17 +1312,17 @@ class HWAgentApp {
                 if (isCollapsed) {
                     // Expand
                     sidebar.classList.remove('collapsed');
-                    const savedWidth = localStorage.getItem('sidebarWidth') || '300';
-                    const width = parseInt(savedWidth);
+                    const savedWidth = localStorage.getItem('sidebarWidth') || '300px';
+                    const width = parseInt(savedWidth, 10);
                     sidebar.style.width = width + 'px';
                     document.documentElement.style.setProperty('--sidebar-width', width + 'px');
-                    this.updateLayoutPositions(width);
+                    this.adjustChatElementsPosition();
                     localStorage.setItem('sidebarCollapsed', 'false');
                 } else {
                     // Collapse
                     sidebar.classList.add('collapsed');
                     document.documentElement.style.setProperty('--sidebar-width', '60px');
-                    this.updateLayoutPositions(60);
+                    this.adjustChatElementsPosition();
                     localStorage.setItem('sidebarCollapsed', 'true');
                 }
             }
@@ -1268,7 +1363,7 @@ class HWAgentApp {
             if (isCollapsed) {
                 sidebar.classList.add('collapsed');
                 document.documentElement.style.setProperty('--sidebar-width', '60px');
-                this.updateLayoutPositions(60);
+                this.adjustChatElementsPosition();
             }
         }
     }
@@ -1323,8 +1418,10 @@ class HWAgentApp {
                 if (!isRelevantFile) return false;
                 
                 // Check if file was created recently (extended time window)
-                const fileModified = new Date(file.modified);
-                return fileModified >= threshold;
+                // const fileModified = new Date(file.modified); // file.modified might not be available or in correct format
+                // For now, let's assume all files in tmp are potentially relevant if they match type
+                // Later, if reliable modification times are available from API, re-enable this check.
+                return true; // Temporarily allowing all matching file types
             });
             
             if (relevantFiles.length === 0) {
@@ -1464,15 +1561,52 @@ class HWAgentApp {
 
     // New method for closing file preview
     closeFilePreview() {
-        if (this.elements.filePreview) {
-            this.elements.filePreview.classList.remove('active');
+        const mainContent = document.querySelector('.main-content');
+        if (this.elements.filePreviewPanel) {
+            this.elements.filePreviewPanel.classList.remove('active');
+            if(mainContent) mainContent.classList.remove('file-preview-active');
         }
         
         // Remove class from main-content to restore normal layout
+        // const mainContent = document.querySelector('.main-content'); // duplicate
+        // if (mainContent) { // duplicate
+            // mainContent.classList.remove('file-preview-open'); // deprecated class
+        // }
+        this.adjustLayoutForPreview();
+        this.adjustChatElementsPosition(); // Adjust positions after closing
+    }
+
+    adjustLayoutForPreview() {
         const mainContent = document.querySelector('.main-content');
-        if (mainContent) {
-            mainContent.classList.remove('file-preview-open');
+        const chatContainer = this.elements.chatContainer;
+        const sidebarWidth = this.elements.sidebar.offsetWidth;
+        let previewWidth = 0;
+
+        if (this.elements.filePreviewPanel.classList.contains('active')) {
+            if (mainContent) mainContent.classList.add('file-preview-active');
+            previewWidth = this.elements.filePreviewPanel.offsetWidth;
+        } else {
+            if (mainContent) mainContent.classList.remove('file-preview-active');
         }
+        
+        // Chat container takes up remaining space
+        // chatContainer.style.width = `calc(100% - ${sidebarWidth}px - ${previewWidth}px)`;
+        // chatContainer.style.marginLeft = `${sidebarWidth}px`;
+        
+        // Adjust header (status indicator part)
+        // This is tricky because the status indicator is part of a fixed header.
+        // We might need to adjust a margin or width of an element within the header
+        // or accept that it might be overlapped on very narrow screens when preview is open.
+        // A robust solution would involve making the header content aware of the preview panel width.
+        const appHeader = document.querySelector('.app-header');
+        if (appHeader) {
+             // If header-content is flex, its children will adjust.
+             // Or, if status-indicator is positioned absolutely/fixed relative to header-right,
+             // then header-right's width or margin needs to change.
+             // For now, this might be best handled by CSS using :has() if browser support is okay,
+             // or more complex JS to adjust specific header internal elements.
+        }
+        this.adjustChatElementsPosition(); // Call new general adjuster
     }
 
     // New method to disable send button during initialization

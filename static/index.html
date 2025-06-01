@@ -40,14 +40,14 @@
             
             <!-- Sidebar -->
             <div class="sidebar">
+                <!-- Sidebar resizer -->
+                <div class="sidebar-resizer" id="sidebarResizer"></div>
                 <div class="sidebar-header">
                     <h1><i class="fas fa-robot"></i>HWAgent</h1>
                     <button class="sidebar-toggle" title="Toggle Sidebar">
                         <i class="fas fa-chevron-left"></i>
                     </button>
                 </div>
-                <!-- Sidebar resizer -->
-                <div class="sidebar-resizer"></div>
                 
                 <!-- Sidebar content -->
                 <div class="sidebar-content">
@@ -203,6 +203,18 @@
                     </div>
                 </div>
             </div>
+
+            <!-- File Preview Panel -->
+            <div id="filePreview" class="file-preview-panel">
+                <div class="file-preview-resizer" id="filePreviewResizer"></div>
+                <div class="file-preview-header">
+                    <h3 id="previewFileName">File Preview</h3>
+                    <button id="closePreviewBtn" title="Close preview">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                <div id="previewFileContent" class="preview-content-area"></div>
+            </div>
         </main>
 
         <!-- Error Modal -->
@@ -222,17 +234,6 @@
                 </div>
             </div>
         </div>
-    </div>
-
-    <!-- File Preview Panel -->
-    <div id="filePreview" class="file-preview">
-        <div class="file-preview-header">
-            <h3 id="previewFileName">File Preview</h3>
-            <button id="closePreviewBtn" title="Close preview">
-                <i class="fas fa-times"></i>
-            </button>
-        </div>
-        <div id="previewFileContent"></div>
     </div>
 
     <script src="/static/app.js"></script>
