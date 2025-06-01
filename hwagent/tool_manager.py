@@ -16,9 +16,9 @@ from hwagent.core import (
 
 
 class RunCommandTool(BaseTool):
-    """Tool to execute a shell command."""
+    """Tool to execute a shell command with security restrictions."""
     name = "run_command"
-    description = "Executes a shell command and returns its standard output and standard error. Use for tasks like compiling code, running scripts, etc."
+    description = "Executes a shell command and returns its standard output and standard error. Use for tasks like compiling code, running scripts, etc. Commands are validated for security and dangerous operations are blocked."
 
     @property
     def parameters_schema(self) -> Dict[str, Any]:
@@ -40,6 +40,17 @@ class RunCommandTool(BaseTool):
         command = kwargs.get("command")
         if not command:
             return ToolExecutionResult.error("Missing command parameter.", "'command' is required.")
+
+        # Import SecurityValidator here to avoid circular imports
+        from hwagent.core.validators import SecurityValidator
+        
+        # Security check for dangerous shell commands
+        security_result = SecurityValidator.validate_shell_command_safety(command)
+        if security_result.is_error():
+            return ToolExecutionResult.error(
+                f"Security check failed for command: {command}",
+                security_result.details
+            )
 
         try:
             # WARNING: shell=True can be a security risk if command is from untrusted input.

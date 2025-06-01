@@ -648,6 +648,11 @@ tech_solver:
     - Avoid generic names like "output.pdf" - be specific
     - Use consistent naming conventions for related files
 
+    **CRITICAL: FILE DELETION IS DISABLED FOR SECURITY REASONS**
+    - Never delete any files - this is a security measure to prevent accidental deletion of important files
+    - Never run any dangerous commands
+    - Prevent bombing the system with too many files
+
   user_prompt: |
     {{task}}. Generate LaTeX document and python script to verify the solution if needed.
     If there are many tasks, solve each task one by one step by step.

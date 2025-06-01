@@ -4,7 +4,8 @@ Refactored to use core components and follow SOLID principles.
 """
 
 from typing import Any
-from hwagent.core import FileOperationTool, ToolExecutionResult, ParameterValidator
+from hwagent.core import FileOperationTool, ToolExecutionResult, ParameterValidator, SecurityValidator
+from pathlib import Path
 
 
 class CreateFileTool(FileOperationTool):
@@ -47,6 +48,17 @@ class CreateFileTool(FileOperationTool):
         content_result = ParameterValidator.validate_required_string(content, "content")
         if content_result.is_error():
             return content_result
+        
+        # Security check: validate content safety
+        filepath = parameters.get("filepath", "")
+        file_extension = Path(filepath).suffix
+        
+        security_result = SecurityValidator.validate_file_content_safety(content, file_extension)
+        if security_result.is_error():
+            return ToolExecutionResult.error(
+                f"Security validation failed for file: {filepath}",
+                security_result.details
+            )
         
         return ToolExecutionResult.success("All parameters validated successfully")
     

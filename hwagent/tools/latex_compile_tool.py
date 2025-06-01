@@ -11,7 +11,7 @@ from typing import Any
 
 from hwagent.core import (
     FileOperationTool, ToolExecutionResult, ExecutionStatus, Constants, 
-    ParameterValidator, FilePathValidator
+    ParameterValidator, FilePathValidator, SecurityValidator
 )
 
 
@@ -320,36 +320,54 @@ class LaTeXErrorParser:
 
 
 class LaTeXCompiler:
-    """Handles LaTeX compilation with different engines."""
+    """Handles LaTeX compilation with various engines. Following SRP."""
     
-    def __init__(self, tmp_directory: str, timeout: int = 30):
+    def __init__(self, tmp_directory: str, timeout: int = Constants.LATEX_TIMEOUT_SECONDS):
         self.tmp_directory = tmp_directory
         self.timeout = timeout
-        self.engines = ['pdflatex', 'xelatex', 'lualatex']
     
     def compile_latex(self, filepath: str, engine: str = 'pdflatex', 
                      extra_args: list[str] = None) -> ToolExecutionResult:
-        """Compile LaTeX file to PDF with automatic Enter input for prompts."""
-        if extra_args is None:
-            extra_args = []
-        
+        """Compile LaTeX file to PDF with security checks."""
         try:
-            file_name = os.path.basename(filepath)
-            file_stem = Path(filepath).stem
+            # Security check: validate file content first
+            full_path = os.path.join(self.tmp_directory, filepath)
+            with open(full_path, 'r', encoding='utf-8') as f:
+                latex_content = f.read()
             
-            # Enhanced pdflatex arguments with proper interaction handling
-            cmd = [
-                engine,
-                '-interaction=batchmode',    # No interaction at all - prevents hanging
-                '-file-line-error',         # Show file and line for errors
-                '-synctex=1',               # Generate synctex for better error location
-                *extra_args,
-                file_name
+            # Check for dangerous LaTeX commands
+            security_result = SecurityValidator.validate_latex_safety(latex_content)
+            if security_result.is_error():
+                return ToolExecutionResult.error(
+                    f"LaTeX security check failed for {filepath}",
+                    security_result.details
+                )
+            
+            base_cmd = [engine]
+            
+            # Security: Always disable shell escape
+            security_args = [
+                "-no-shell-escape",  # Disable \write18 and similar
+                "-interaction=nonstopmode",  # Don't wait for user input
+                "-halt-on-error",  # Stop on first error
+                "-file-line-error",  # Better error formatting
             ]
+            
+            # Validate extra arguments for security
+            if extra_args:
+                args_validation = SecurityValidator.validate_shell_command_safety(extra_args)
+                if args_validation.is_error():
+                    return ToolExecutionResult.error(
+                        "Dangerous arguments detected",
+                        args_validation.details
+                    )
+                base_cmd.extend(extra_args)
+            
+            base_cmd.extend(security_args)
             
             # Run directly without 'yes' command wrapper - batchmode handles input
             result = subprocess.run(
-                cmd,
+                base_cmd,
                 cwd=self.tmp_directory,
                 capture_output=True,
                 text=True,
@@ -357,14 +375,14 @@ class LaTeXCompiler:
                 input=''  # Empty input to ensure no hanging
             )
             
-            output_lines = [f"=== LaTeX Compilation: {file_name} ==="]
+            output_lines = [f"=== LaTeX Compilation: {filepath} ==="]
             output_lines.append(f"Engine: {engine}")
-            output_lines.append(f"Command: {' '.join(cmd)}")
+            output_lines.append(f"Command: {' '.join(base_cmd)}")
             output_lines.append(f"Exit Code: {result.returncode}")
             output_lines.append("Interaction: batchmode (no prompts)")
             
             # Check for PDF output
-            pdf_path = os.path.join(self.tmp_directory, f"{file_stem}.pdf")
+            pdf_path = os.path.join(self.tmp_directory, f"{Path(filepath).stem}.pdf")
             pdf_exists = os.path.exists(pdf_path)
             
             if result.stdout:
@@ -392,23 +410,23 @@ class LaTeXCompiler:
                             output_lines.append(f"{i}. {suggestion}")
             
             if result.returncode == 0 and pdf_exists:
-                output_lines.append(f"\n✓ Compilation successful! PDF created: {file_stem}.pdf")
+                output_lines.append(f"\n✓ Compilation successful! PDF created: {Path(filepath).stem}.pdf")
                 return ToolExecutionResult.success(
-                    f"compiled LaTeX file: {file_name}",
+                    f"compiled LaTeX file: {filepath}",
                     "\n".join(output_lines)
                 )
             elif pdf_exists:
                 # PDF created despite warnings/errors - still success
-                output_lines.append(f"\n✓ Compilation completed with warnings! PDF created: {file_stem}.pdf")
+                output_lines.append(f"\n✓ Compilation completed with warnings! PDF created: {Path(filepath).stem}.pdf")
                 return ToolExecutionResult.success(
-                    f"compiled LaTeX file: {file_name} (with warnings)",
+                    f"compiled LaTeX file: {filepath} (with warnings)",
                     "\n".join(output_lines)
                 )
             else:
                 output_lines.append(f"\n✗ Compilation failed")
                 return ToolExecutionResult(
                     status=ExecutionStatus.ERROR,
-                    message=f"compiling LaTeX file: {file_name}",
+                    message=f"compiling LaTeX file: {filepath}",
                     details="\n".join(output_lines)
                 )
                 

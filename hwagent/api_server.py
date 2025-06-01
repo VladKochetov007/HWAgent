@@ -740,45 +740,11 @@ def get_tmp_file():
 
 @app.route('/api/fs/tmp/delete', methods=['DELETE'])
 def delete_tmp_item():
-    """Delete a file or directory from tmp/."""
-    item_path_str = request.args.get('path')
-    logger.info(f"Request to delete tmp item: '{item_path_str}'")
-    if not item_path_str:
-        logger.warning("Item path not provided for /api/fs/tmp/delete")
-        return jsonify({'error': 'Item path is required'}), 400
-    try:
-        item_path = TMP_DIR_PATH.joinpath(item_path_str).resolve()
-        logger.debug(f"Resolved item path for delete: {item_path}")
-
-        if not str(item_path).startswith(str(TMP_DIR_PATH.resolve())):
-            logger.warning(f"Access denied for delete item: {item_path}. Outside allowed: {TMP_DIR_PATH.resolve()}")
-            return jsonify({'error': 'Access denied: Path is outside the allowed directory.'}), 403
-        if item_path == TMP_DIR_PATH.resolve(): 
-             logger.warning("Attempt to delete root tmp directory blocked.")
-             return jsonify({'error': 'Cannot delete the root tmp directory.'}), 400
-        if not item_path.exists():
-            logger.warning(f"Item not found for delete: {item_path}")
-            return jsonify({'error': 'Item not found'}), 404
-        
-        if item_path.is_file():
-            item_path.unlink()
-            logger.info(f"Deleted file: {item_path}")
-            return jsonify({'message': f'File {item_path_str} deleted successfully'})
-        elif item_path.is_dir():
-            if not any(item_path.iterdir()): 
-                item_path.rmdir()
-                logger.info(f"Deleted empty directory: {item_path}")
-                return jsonify({'message': f'Directory {item_path_str} deleted successfully'})
-            else:
-                logger.warning(f"Attempt to delete non-empty directory: {item_path}")
-                return jsonify({'error': 'Directory is not empty. Only empty directories can be deleted.'}), 400
-        else:
-            logger.warning(f"Path is not a file or directory for delete: {item_path}")
-            return jsonify({'error': 'Path is not a file or directory'}), 400
-
-    except Exception as e:
-        logger.error(f"Error deleting tmp item '{item_path_str}': {e}", exc_info=True)
-        return jsonify({'error': f'Failed to delete item: {str(e)}'}), 500
+    """Delete a file or directory from tmp/. DISABLED FOR SECURITY."""
+    logger.warning("File deletion endpoint accessed but disabled for security reasons")
+    return jsonify({
+        'error': 'File deletion is disabled for security reasons. This endpoint has been deactivated to prevent unwanted file deletions.'
+    }), 403
 
 # WebSocket Events
 @socketio.on('connect')

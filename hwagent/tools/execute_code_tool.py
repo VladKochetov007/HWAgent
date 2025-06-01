@@ -10,7 +10,7 @@ from typing import Any
 
 from hwagent.core import (
     FileOperationTool, ToolExecutionResult, Constants, 
-    ParameterValidator, FilePathValidator
+    ParameterValidator, FilePathValidator, SecurityValidator
 )
 
 
@@ -22,16 +22,38 @@ class CodeExecutor:
         self.timeout = timeout
     
     def execute_python(self, filepath: str) -> ToolExecutionResult:
-        """Execute Python file."""
+        """Execute Python file with security checks."""
         try:
+            # Read file content for security analysis
+            full_path = os.path.join(self.tmp_directory, filepath)
+            with open(full_path, 'r', encoding='utf-8') as f:
+                code_content = f.read()
+            
+            # Security check for dangerous patterns
+            security_result = SecurityValidator.validate_python_code_safety(code_content)
+            if security_result.is_error():
+                return ToolExecutionResult.error(
+                    f"Security check failed for {filepath}",
+                    security_result.details
+                )
+            
             file_name = os.path.basename(filepath)
             
+            # Additional security: restrict Python execution
+            restricted_args = [
+                Constants.PYTHON_EXECUTABLE, 
+                "-I",  # Isolate from user site-packages
+                "-s",  # Don't add user site directory
+                file_name
+            ]
+            
             result = subprocess.run(
-                [Constants.PYTHON_EXECUTABLE, file_name],
+                restricted_args,
                 cwd=self.tmp_directory,
                 capture_output=True,
                 text=True,
-                timeout=self.timeout
+                timeout=self.timeout,
+                env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"}  # Prevent .pyc files
             )
             
             output_lines = [f"=== Python Execution: {file_name} ==="]

@@ -6,10 +6,155 @@ Following SRP - each validator has single responsibility.
 import os
 from pathlib import Path
 from typing import Any
+import re
 
 from hwagent.core.constants import Constants
 from hwagent.core.exceptions import ValidationError
 from hwagent.core.models import ToolExecutionResult, ExecutionStatus
+
+
+class SecurityValidator:
+    """Validator for security-related checks to prevent dangerous operations."""
+    
+    @staticmethod
+    def validate_python_code_safety(code: str) -> ToolExecutionResult:
+        """Check Python code for dangerous patterns."""
+        dangerous_patterns = [
+            r'import\s+(os|subprocess|shutil)',
+            r'from\s+(os|subprocess|shutil)\s+import',
+            r'__import__\s*\(',
+            r'eval\s*\(',
+            r'exec\s*\(',
+            r'open\s*\([^)]*["\'][/\\]',  # Opening files with absolute paths
+            r'os\.system\s*\(',
+            r'subprocess\.',
+            r'shutil\.rmtree',
+            r'os\.remove',
+            r'os\.unlink',
+            r'pathlib\.Path.*\.unlink',
+            r'Path\([^)]*\)\.unlink',  # Direct Path().unlink() calls
+            r'\.write18',  # LaTeX shell escape
+            # Additional patterns to prevent HTTP requests and file operations
+            r'requests\.',  # HTTP requests library
+            r'urllib\.request',  # URL library
+            r'urllib\.urlopen',
+            r'http\.client',
+            r'httplib',
+            r'DELETE.*api/fs/tmp/delete',  # Direct API call
+            r'localhost:5000',  # Local API server
+            r'127\.0\.0\.1:5000',  # Local API server IP
+            r'\.delete\(',  # Any delete method calls
+            r'pathlib\.Path.*\.rmdir',  # Directory removal
+            r'os\.rmdir',  # Directory removal
+            r'tempfile\.mktemp',  # Insecure temporary files
+        ]
+        
+        lines = code.split('\n')
+        warnings = []
+        
+        for i, line in enumerate(lines, 1):
+            line_stripped = line.strip()
+            # Skip comments
+            if line_stripped.startswith('#'):
+                continue
+                
+            for pattern in dangerous_patterns:
+                if re.search(pattern, line, re.IGNORECASE):
+                    warnings.append(f"Line {i}: Potentially dangerous pattern '{pattern}' detected")
+        
+        if warnings:
+            return ToolExecutionResult.error(
+                "Dangerous code patterns detected",
+                "\n".join(warnings)
+            )
+        
+        return ToolExecutionResult.success("Python code safety check passed")
+    
+    @staticmethod
+    def validate_latex_safety(content: str) -> ToolExecutionResult:
+        """Check LaTeX content for dangerous commands."""
+        dangerous_commands = Constants.DANGEROUS_LATEX_COMMANDS
+        warnings = []
+        
+        lines = content.split('\n')
+        for i, line in enumerate(lines, 1):
+            line_stripped = line.strip()
+            # Skip comments
+            if line_stripped.startswith('%'):
+                continue
+                
+            for dangerous_cmd in dangerous_commands:
+                if dangerous_cmd in line:
+                    warnings.append(f"Line {i}: Dangerous LaTeX command '{dangerous_cmd}' detected")
+        
+        if warnings:
+            return ToolExecutionResult.error(
+                "Dangerous LaTeX commands detected",
+                "\n".join(warnings)
+            )
+        
+        return ToolExecutionResult.success("LaTeX safety check passed")
+    
+    @staticmethod
+    def validate_shell_command_safety(command: str | list[str]) -> ToolExecutionResult:
+        """Check shell commands for dangerous operations."""
+        if isinstance(command, list):
+            command_str = ' '.join(command)
+        else:
+            command_str = command
+        
+        dangerous_commands = Constants.DANGEROUS_COMMANDS
+        command_lower = command_str.lower()
+        
+        for dangerous_cmd in dangerous_commands:
+            if dangerous_cmd in command_lower:
+                return ToolExecutionResult.error(
+                    f"Dangerous command detected: '{dangerous_cmd}'",
+                    f"Full command: {command_str}"
+                )
+        
+        # Check for shell injection patterns
+        shell_injection_patterns = [
+            r'[;&|`$]',  # Command separators and substitution
+            r'\$\(',     # Command substitution
+            r'>\s*/dev',  # Writing to devices
+            r'<\s*/dev',  # Reading from devices
+        ]
+        
+        for pattern in shell_injection_patterns:
+            if re.search(pattern, command_str):
+                return ToolExecutionResult.error(
+                    "Potential shell injection detected",
+                    f"Pattern '{pattern}' found in: {command_str}"
+                )
+        
+        return ToolExecutionResult.success("Shell command safety check passed")
+    
+    @staticmethod
+    def validate_file_content_safety(content: str, file_extension: str = "") -> ToolExecutionResult:
+        """General file content safety validation."""
+        # Check for potential binary content
+        if '\x00' in content:
+            return ToolExecutionResult.error(
+                "Binary content detected",
+                "File appears to contain binary data"
+            )
+        
+        # Check file size in memory
+        content_size = len(content.encode('utf-8'))
+        if content_size > Constants.MAX_FILE_SIZE_BYTES:
+            return ToolExecutionResult.error(
+                "Content too large",
+                f"Size: {content_size} bytes, Max: {Constants.MAX_FILE_SIZE_BYTES} bytes"
+            )
+        
+        # File type specific checks
+        if file_extension.lower() in ['.py']:
+            return SecurityValidator.validate_python_code_safety(content)
+        elif file_extension.lower() in ['.tex', '.latex']:
+            return SecurityValidator.validate_latex_safety(content)
+        
+        return ToolExecutionResult.success("File content safety check passed")
 
 
 class FilePathValidator:

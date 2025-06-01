@@ -26,10 +26,10 @@ class Constants:
     MAX_ITERATIONS: Final[int] = 7
     MAX_REACT_ITERATIONS: Final[int] = 25
     DEFAULT_STREAMING_ENABLED: Final[bool] = True
-    EXECUTION_TIMEOUT_SECONDS: Final[int] = 30
+    EXECUTION_TIMEOUT_SECONDS: Final[int] = 15
     
     # File validation
-    FORBIDDEN_PATH_SEGMENTS: Final[tuple[str, ...]] = ("..", )
+    FORBIDDEN_PATH_SEGMENTS: Final[tuple[str, ...]] = ("..", "/", "\\", "~")
     MAX_FILE_SIZE_BYTES: Final[int] = 10 * 1024 * 1024  # 10MB
     
     # File extensions
@@ -61,4 +61,33 @@ class Constants:
     FRESHNESS_ONE_WEEK: Final[str] = "oneWeek"
     FRESHNESS_ONE_MONTH: Final[str] = "oneMonth"
     FRESHNESS_ONE_YEAR: Final[str] = "oneYear"
-    FRESHNESS_NO_LIMIT: Final[str] = "noLimit" 
+    FRESHNESS_NO_LIMIT: Final[str] = "noLimit"
+    
+    # Security restrictions
+    DANGEROUS_COMMANDS: Final[tuple[str, ...]] = (
+        "rm", "rmdir", "del", "format", "fdisk", "mkfs", "dd", 
+        "shutdown", "reboot", "halt", "systemctl", "service",
+        "sudo", "su", "chmod", "chown", "passwd", "useradd",
+        "curl", "wget", "git", "pip", "npm", "apt", "yum",
+        "mount", "umount", "kill", "killall", "pkill",
+        # Additional file deletion and HTTP commands to prevent API abuse
+        "unlink", "trash", "shred", "wipe", "erase",
+        "http", "https", "DELETE", "POST", "PUT", "PATCH",
+        "api/fs/tmp/delete", "localhost:5000", "127.0.0.1:5000",
+        "python -m http", "python3 -m http", "nc ", "netcat",
+        "telnet", "ssh", "scp", "rsync", "ftp", "sftp"
+    )
+
+    DANGEROUS_PYTHON_IMPORTS: Final[tuple[str, ...]] = (
+        "os.system", "subprocess.call", "subprocess.run", "subprocess.Popen",
+        "eval", "exec", "__import__", "shutil.rmtree", "os.remove",
+        "os.unlink", "os.rmdir", "pathlib.Path.unlink"
+    )
+
+    DANGEROUS_LATEX_COMMANDS: Final[tuple[str, ...]] = (
+        "\\write18", "\\immediate\\write18", "\\openin", "\\openout",
+        "\\input|", "\\InputIfFileExists", "\\@@input"
+    )
+
+    # Execution timeouts (reduced for safety)
+    LATEX_TIMEOUT_SECONDS: Final[int] = 10     # Specific for LaTeX 
