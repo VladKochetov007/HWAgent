@@ -84,28 +84,19 @@ print(f"PDF generated: {result.pdf_path}")
 ### Working with LaTeX Tools
 
 ```python
-from hwagent.tools import UnifiedLaTeXTool, LaTeXFixTool
+from hwagent.tools import LaTeXFixTool
 
-# Create and compile LaTeX document with automatic preprocessing
-latex_tool = UnifiedLaTeXTool()
+# Fix existing LaTeX files with enhanced processing
+fix_tool = LaTeXFixTool()
 
-# Content with quotes will be automatically cleaned
-content = """'''
-\\documentclass{article}
-\\begin{document}
-\\section{Test}
-Hello world: $E = mc^2$
-\\end{document}
-'''"""
-
-result = latex_tool.execute(
-    filepath="test.tex",
-    content=content,
-    compile=True
+result = fix_tool.execute(
+    filepath="document.tex",
+    task_type="math"
 )
 
-# Quotes removed, math packages added, PDF compiled
-print(result.message)  # Shows: "quotes removed, packages enhanced"
+# Comprehensive fixing and validation
+print(f"Fixed: {result.success}")
+print(f"Details: {result.details}")
 ```
 
 ### Advanced Features
@@ -119,9 +110,9 @@ result = fix_tool.execute(
     task_type="math"
 )
 
-# Comprehensive fixing including quote removal and package enhancement
-print(f"Fixed: {result.metadata['quotes_removed']}")
-print(f"Enhanced: {result.metadata['packages_enhanced']}")
+# Comprehensive fixing and validation
+print(f"Fixed: {result.success}")
+print(f"Details: {result.details}")
 ```
 
 ## 🛠 Tool System
@@ -130,8 +121,6 @@ print(f"Enhanced: {result.metadata['packages_enhanced']}")
 
 | Tool | Description | Key Features |
 |------|-------------|--------------|
-| `UnifiedLaTeXTool` | Complete LaTeX workflow | Quote removal, package enhancement, compilation |
-| `SimpleLaTeXTool` | Reliable document creation | Clean processing, error analysis |
 | `LaTeXCompileTool` | Advanced compilation | Multi-engine, preprocessing, error recovery |
 | `LaTeXFixTool` | Document repair | Template regeneration, comprehensive fixing |
 
@@ -194,9 +183,6 @@ python -m pytest tests/ -v
 
 # Test LaTeX tools specifically
 python -m pytest tests/test_latex_tools.py -v
-
-# Test quote removal functionality
-python -m pytest tests/test_quote_removal.py -v
 ```
 
 ## 🔍 Troubleshooting
@@ -208,10 +194,10 @@ python -m pytest tests/test_quote_removal.py -v
    - Check `pdflatex --version`
    - Verify write permissions in output directory
 
-2. **Quotes Not Removed**
-   - Check content format (should be string)
-   - Verify tool initialization
-   - Enable debug logging
+2. **LaTeX Compilation Issues**
+   - Use LaTeXFixTool to check for problems
+   - Check Unicode/Cyrillic encoding issues
+   - Verify document structure
 
 3. **Matplotlib Display Errors**
    - Ensure `MATPLOTLIB_BACKEND=Agg` is set
@@ -242,7 +228,7 @@ agent = HWAgent(debug=True)
 - Use modern Python features (pattern matching, new-style typing)
 - Follow KISS and DRY principles
 - Add comprehensive tests for new features
-- Ensure LaTeX tools handle quote removal correctly
+- Ensure LaTeX tools handle validation correctly
 
 ## 📄 License
 
@@ -253,8 +239,8 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - LaTeX community for comprehensive documentation
 - matplotlib developers for headless backend support
 - Python community for modern language features
-- Contributors who helped enhance the quote removal functionality
+- Contributors who helped enhance the LaTeX validation functionality
 
 ---
 
-**HWAgent** - Making homework solutions professional, automatic, and reliable with enhanced LaTeX processing capabilities. 
+**HWAgent** - Making homework solutions professional, automatic, and reliable with enhanced LaTeX validation capabilities.

@@ -20,9 +20,6 @@ from .web_search_tool import WebSearchTool
 from .enhanced_web_search_tool import EnhancedWebSearchTool
 from .memory_tool import MemoryTool
 
-# Unified LaTeX tool (replaces all separate LaTeX tools)
-from .unified_latex_tool import UnifiedLaTeXTool
-
 # Export all tools
 __all__ = [
     "BaseTool",
@@ -34,23 +31,16 @@ __all__ = [
     "ExecuteCodeTool",
     "WebSearchTool",
     "EnhancedWebSearchTool",
-    "MemoryTool",
-    "UnifiedLaTeXTool"
+    "MemoryTool"
 ]
 
 # Legacy support - deprecated tools (will be removed in future versions)
 # These are kept for backward compatibility but should not be used in new code
 try:
-    from .simple_latex_tool import SimpleLaTeXTool
-    from .smart_latex_generator_tool import SmartLaTeXGenerator
     from .latex_compile_tool import LaTeXCompileTool
-    from .latex_fix_tool import LaTeXFixTool
     
     __all__.extend([
-        "SimpleLaTeXTool",
-        "SmartLaTeXGenerator", 
         "LaTeXCompileTool",
-        "LaTeXFixTool"
     ])
 except ImportError:
     # Legacy tools not available, which is fine

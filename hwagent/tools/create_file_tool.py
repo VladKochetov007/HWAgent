@@ -55,6 +55,9 @@ class CreateFileTool(FileOperationTool):
         filepath = kwargs["filepath"]
         content = kwargs["content"]
         
+        # Remove unwanted quotes from content
+        cleaned_content = self._remove_unwanted_quotes(content)
+        
         full_path = self._get_full_path(filepath)
         
         try:
@@ -66,13 +69,18 @@ class CreateFileTool(FileOperationTool):
             
             # Write file content
             with open(full_path, "w", encoding="utf-8") as f:
-                f.write(content)
+                f.write(cleaned_content)
             
             # Get file info for response
             file_info = self._get_file_info(filepath)
             
+            # Add information about quote removal if it occurred
+            message = f"created file: {filepath}"
+            if content != cleaned_content:
+                message += " (unwanted quotes removed)"
+            
             return ToolExecutionResult.success(
-                f"created file: {filepath}",
+                message,
                 f"Size: {file_info.get('size_bytes', 0)} bytes",
                 data=file_info
             )
@@ -81,4 +89,30 @@ class CreateFileTool(FileOperationTool):
             return ToolExecutionResult.error(
                 f"creating file '{filepath}'",
                 str(e)
-            ) 
+            )
+    
+    def _remove_unwanted_quotes(self, content: str) -> str:
+        """Remove unwanted quotes from beginning and end of content"""
+        if not content:
+            return content
+        
+        original_content = content
+        
+        # Remove different types of quotes from beginning and end
+        quote_chars = ['"', "'", '`']
+        
+        for quote_char in quote_chars:
+            # Remove triple quotes first
+            triple_quote = quote_char * 3
+            if content.startswith(triple_quote) and content.endswith(triple_quote):
+                content = content[3:-3]
+                break
+            
+            # Remove single quotes
+            while content.startswith(quote_char) and content.endswith(quote_char):
+                content = content[1:-1]
+        
+        # Clean up any remaining whitespace
+        content = content.strip()
+        
+        return content 

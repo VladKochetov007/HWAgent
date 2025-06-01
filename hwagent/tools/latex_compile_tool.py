@@ -424,19 +424,26 @@ class LaTeXCompileTool(FileOperationTool):
         if not content:
             return content
         
-        # Remove different types of quotes
-        quote_chars = ["'", '"', '`']
+        original_content = content
+        
+        # Remove different types of quotes from beginning and end
+        quote_chars = ['"', "'", '`']
         
         for quote_char in quote_chars:
-            # Remove from beginning
-            while content.startswith(quote_char):
-                content = content[1:]
+            # Remove triple quotes first (most common issue)
+            triple_quote = quote_char * 3
+            if content.startswith(triple_quote) and content.endswith(triple_quote):
+                content = content[3:-3]
+                break
             
-            # Remove from end
-            while content.endswith(quote_char):
-                content = content[:-1]
+            # Remove single quotes from beginning and end
+            while content.startswith(quote_char) and content.endswith(quote_char):
+                content = content[1:-1]
         
-        return content.strip()
+        # Clean up any remaining whitespace
+        content = content.strip()
+        
+        return content
     
     def _ensure_mathematical_packages(self, content: str) -> str:
         """Ensure necessary mathematical packages are included"""

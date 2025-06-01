@@ -1293,27 +1293,42 @@ class HWAgentApp {
             const data = await response.json();
             const files = data.files || [];
             
-            // Get current time and set threshold for recent files (2 minutes ago)
+            // Get current time and set threshold for recent files (30 minutes ago instead of 2)
             const now = new Date();
-            const thresholdMinutes = 2;
+            const thresholdMinutes = 30; // Extended from 2 to 30 minutes
             const threshold = new Date(now.getTime() - thresholdMinutes * 60 * 1000);
             
             // Filter for relevant file types and recent files only
             const relevantFiles = files.filter(file => {
                 if (file.is_dir) return false;
                 
-                // Show PDF, TEX, and PY files (final results and source code) - exclude task.txt files
+                // Show more file types: PDF, TEX, PY, PNG, JPG, JPEG, SVG, TXT, MD, JSON, CSV
                 const isRelevantFile = (
                     (file.name.endsWith('.pdf') || 
                      file.name.endsWith('.tex') || 
-                     file.name.endsWith('.py')) && 
+                     file.name.endsWith('.py') ||
+                     file.name.endsWith('.png') ||
+                     file.name.endsWith('.jpg') ||
+                     file.name.endsWith('.jpeg') ||
+                     file.name.endsWith('.svg') ||
+                     file.name.endsWith('.txt') ||
+                     file.name.endsWith('.md') ||
+                     file.name.endsWith('.json') ||
+                     file.name.endsWith('.csv') ||
+                     file.name.endsWith('.xlsx') ||
+                     file.name.endsWith('.docx')) && 
                     !file.name.includes('task') &&
-                    !file.name.includes('new_task')
+                    !file.name.includes('new_task') &&
+                    !file.name.includes('.aux') &&
+                    !file.name.includes('.log') &&
+                    !file.name.includes('.out') &&
+                    !file.name.includes('.fls') &&
+                    !file.name.includes('.fdb_latexmk')
                 );
                 
                 if (!isRelevantFile) return false;
                 
-                // Check if file was created recently
+                // Check if file was created recently (extended time window)
                 const fileModified = new Date(file.modified);
                 return fileModified >= threshold;
             });
@@ -1328,7 +1343,7 @@ class HWAgentApp {
             
             const attachmentsHeader = document.createElement('div');
             attachmentsHeader.className = 'file-attachments-header';
-            attachmentsHeader.innerHTML = '<i class="fas fa-paperclip"></i> Response Files (PDF/TEX/PY)';
+            attachmentsHeader.innerHTML = '<i class="fas fa-paperclip"></i> Response Files - Available for Download';
             
             const filesList = document.createElement('div');
             filesList.className = 'file-attachments-list';
@@ -1404,12 +1419,26 @@ class HWAgentApp {
             case 'yaml':
             case 'yml':
                 return 'fa-file-code';
+            case 'csv':
+                return 'fa-file-csv';
+            case 'xlsx':
+            case 'xls':
+                return 'fa-file-excel';
+            case 'docx':
+            case 'doc':
+                return 'fa-file-word';
             case 'aux':
             case 'out':
+            case 'fls':
+            case 'fdb_latexmk':
                 return 'fa-file';
             case 'png':
             case 'jpg':
             case 'jpeg':
+            case 'gif':
+            case 'bmp':
+                return 'fa-file-image';
+            case 'svg':
                 return 'fa-file-image';
             default:
                 return 'fa-file';
