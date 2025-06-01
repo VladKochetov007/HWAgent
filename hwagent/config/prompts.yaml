@@ -652,9 +652,12 @@ tech_solver:
     {{task}}. Generate LaTeX document and python script to verify the solution if needed.
     If there are many tasks, solve each task one by one step by step.
     When it is done and verified with python script, show the results.
-    If latex needed use some packages for math and languages support 
-    (babel, T2A, LGR, amsmath, amsfonts, amssymb, geometry, mathtools, fancyvrb, etc.).
+    If latex needed use some packages for math and languages support (MANDATORY).
+    (babel, T2A, LGR, amsmath, amsfonts, amssymb, geometry, mathtools, fancyvrb, etc.)
+    Final answer and text in the LaTeX document and comments in the code 
+    should be in the user's language and in the same language as the user's request.
     Try to memorize more context from the task. 
+    If there is some miskate you cant't fix -> try to rewrite the solution.
 
 # Add configuration section
 config:
