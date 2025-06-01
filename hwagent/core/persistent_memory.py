@@ -65,11 +65,28 @@ class PersistentMemory:
                 with open(self.current_session_file, 'r', encoding='utf-8') as f:
                     data = json.load(f)
                     conversations = []
-                    for entry_data in data.get('conversations', []):
+                    
+                    # Handle different data formats
+                    if isinstance(data, list):
+                        # Old format: direct list of conversation entries
+                        entries_data = data
+                    elif isinstance(data, dict) and 'conversations' in data:
+                        # New format: dict with conversations key
+                        entries_data = data['conversations']
+                    elif isinstance(data, dict) and 'entries' in data:
+                        # Alternative format: dict with entries key
+                        entries_data = data['entries']
+                    else:
+                        # Unknown format, try to extract entries
+                        entries_data = []
+                    
+                    for entry_data in entries_data:
                         # Handle backward compatibility - add session_id if missing
-                        if 'session_id' not in entry_data:
-                            entry_data['session_id'] = self.session_id
-                        conversations.append(ConversationEntry(**entry_data))
+                        if isinstance(entry_data, dict):
+                            if 'session_id' not in entry_data:
+                                entry_data['session_id'] = self.session_id
+                            conversations.append(ConversationEntry(**entry_data))
+                    
                     return conversations
         except Exception as e:
             print(f"Warning: Could not load current session: {e}")
@@ -131,18 +148,50 @@ class PersistentMemory:
                 "task_types": [],
                 "tools_used": [],
                 "success_rate": 0.0,
-                "recent_patterns": []
+                "recent_patterns": [],
+                "summary": "No conversation entries found.",
+                "entry_count": 0,
+                "session_duration": "0 minutes",
+                "recent_tool_usage": [],
+                "key_topics": [],
+                "conversation_flow": []
             }
         
-        # Analyze current session
+        # Basic statistics
         task_types = list(set(entry.task_type for entry in self.current_session))
         tools_used = list(set(tool for entry in self.current_session 
                              for tool in entry.tools_used))
         successful = sum(1 for entry in self.current_session if entry.success)
         success_rate = successful / len(self.current_session) if self.current_session else 0
         
-        # Identify recent patterns
+        # Recent patterns analysis
         recent_patterns = self._analyze_recent_patterns()
+        
+        # Session duration calculation
+        start_time = datetime.fromisoformat(self.current_session[0].timestamp)
+        end_time = datetime.fromisoformat(self.current_session[-1].timestamp)
+        duration_minutes = int((end_time - start_time).total_seconds() / 60)
+        session_duration = f"{duration_minutes} minutes" if duration_minutes > 0 else "< 1 minute"
+        
+        # Recent tool usage (last 10 tools used across all entries)
+        recent_tool_usage = []
+        for entry in reversed(self.current_session):
+            for tool in reversed(entry.tools_used):
+                if tool not in recent_tool_usage:
+                    recent_tool_usage.append(tool)
+                if len(recent_tool_usage) >= 10:
+                    break
+            if len(recent_tool_usage) >= 10:
+                break
+        
+        # Extract key topics from user queries
+        key_topics = self._extract_key_topics()
+        
+        # Conversation flow analysis
+        conversation_flow = self._analyze_conversation_flow()
+        
+        # Generate intelligent summary
+        summary = self._generate_session_summary()
         
         return {
             "session_id": self.session_id,
@@ -150,8 +199,113 @@ class PersistentMemory:
             "task_types": task_types,
             "tools_used": tools_used,
             "success_rate": success_rate,
-            "recent_patterns": recent_patterns
+            "recent_patterns": recent_patterns,
+            "summary": summary,
+            "entry_count": len(self.current_session),
+            "session_duration": session_duration,
+            "recent_tool_usage": recent_tool_usage,
+            "key_topics": key_topics,
+            "conversation_flow": conversation_flow
         }
+    
+    def _extract_key_topics(self) -> List[str]:
+        """Extract key topics from user queries in current session"""
+        topics = []
+        
+        # Common topic keywords
+        topic_keywords = {
+            "mathematics": ["math", "calculate", "equation", "integral", "derivative", "matrix", "математика", "уравнение", "вычисли"],
+            "programming": ["code", "program", "python", "javascript", "algorithm", "код", "программа", "алгоритм"],
+            "physics": ["physics", "force", "energy", "velocity", "физика", "сила", "энергия"],
+            "data_analysis": ["data", "chart", "graph", "analyze", "statistics", "данные", "анализ", "график"],
+            "documents": ["document", "pdf", "latex", "report", "документ", "отчет"],
+            "homework": ["homework", "assignment", "exercise", "домашнее", "задание", "упражнение"],
+            "research": ["research", "study", "investigate", "исследование", "изучение"]
+        }
+        
+        # Count occurrences of topic keywords
+        topic_counts = {}
+        for entry in self.current_session:
+            query_lower = entry.user_query.lower()
+            for topic, keywords in topic_keywords.items():
+                count = sum(1 for keyword in keywords if keyword in query_lower)
+                if count > 0:
+                    topic_counts[topic] = topic_counts.get(topic, 0) + count
+        
+        # Return top topics
+        sorted_topics = sorted(topic_counts.items(), key=lambda x: x[1], reverse=True)
+        topics = [topic for topic, count in sorted_topics[:5]]  # Top 5 topics
+        
+        return topics
+    
+    def _analyze_conversation_flow(self) -> List[str]:
+        """Analyze the flow and progression of conversation"""
+        if len(self.current_session) < 2:
+            return []
+        
+        flow_patterns = []
+        
+        # Check for task progression
+        task_sequence = [entry.task_type for entry in self.current_session]
+        if len(set(task_sequence)) > 1:
+            flow_patterns.append(f"Task progression: {' → '.join(task_sequence[-3:])}")
+        
+        # Check for tool evolution
+        tool_usage_by_entry = [entry.tools_used for entry in self.current_session if entry.tools_used]
+        if len(tool_usage_by_entry) > 1:
+            recent_tools = []
+            for tools in tool_usage_by_entry[-3:]:  # Last 3 entries with tools
+                recent_tools.extend(tools)
+            unique_recent = list(dict.fromkeys(recent_tools))  # Preserve order, remove duplicates
+            if len(unique_recent) > 1:
+                flow_patterns.append(f"Tool evolution: {' → '.join(unique_recent[-3:])}")
+        
+        # Check for complexity progression
+        query_lengths = [len(entry.user_query.split()) for entry in self.current_session]
+        if len(query_lengths) >= 3:
+            recent_lengths = query_lengths[-3:]
+            if recent_lengths[-1] > recent_lengths[0] * 1.5:
+                flow_patterns.append("Increasing query complexity")
+            elif recent_lengths[-1] < recent_lengths[0] * 0.7:
+                flow_patterns.append("Simplifying query pattern")
+        
+        return flow_patterns
+    
+    def _generate_session_summary(self) -> str:
+        """Generate intelligent summary of current session"""
+        if not self.current_session:
+            return "No conversation entries found."
+        
+        entry_count = len(self.current_session)
+        successful_count = sum(1 for entry in self.current_session if entry.success)
+        
+        # Determine primary task type
+        task_types = [entry.task_type for entry in self.current_session]
+        primary_task = max(set(task_types), key=task_types.count) if task_types else "general"
+        
+        # Determine primary tools
+        all_tools = [tool for entry in self.current_session for tool in entry.tools_used]
+        tool_counts = {}
+        for tool in all_tools:
+            tool_counts[tool] = tool_counts.get(tool, 0) + 1
+        primary_tools = sorted(tool_counts.items(), key=lambda x: x[1], reverse=True)[:2]
+        
+        # Build summary
+        summary_parts = [
+            f"{entry_count} exchanges",
+            f"{successful_count}/{entry_count} successful"
+        ]
+        
+        if primary_task != "general":
+            summary_parts.append(f"primarily {primary_task}")
+        
+        if primary_tools:
+            top_tool = primary_tools[0][0]
+            summary_parts.append(f"using {top_tool}")
+            if len(primary_tools) > 1:
+                summary_parts.append(f"and {primary_tools[1][0]}")
+        
+        return f"Session with {', '.join(summary_parts)}"
     
     def _analyze_recent_patterns(self) -> List[str]:
         """Analyze patterns in recent conversations"""

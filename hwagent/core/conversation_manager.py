@@ -288,26 +288,139 @@ class ConversationManagerImpl(ConversationManager):
             return False
     
     def get_memory_status(self) -> Dict[str, Any]:
-        """Get status of persistent memory system"""
-        if not self.enable_persistence:
-            return {"enabled": False, "reason": "Persistent memory not available"}
+        """Get current memory system status"""
+        if not self.enable_persistence or not self.persistent_memory:
+            return {
+                "enabled": False,
+                "reason": "Persistent memory not available"
+            }
         
-        if not self.persistent_memory:
-            return {"enabled": False, "reason": "Persistent memory not initialized"}
+        try:
+            status = {
+                "enabled": True,
+                "persistent_memory": True,
+                "current_session": self.persistent_memory.get_context_summary(),
+                "historical_context": self.persistent_memory.get_historical_context(days=7)
+            }
+            return status
+        except Exception as e:
+            return {
+                "enabled": False,
+                "reason": f"Memory error: {str(e)}"
+            }
+    
+    def get_session_conversation_summary(self, max_entries: int = 5) -> str:
+        """
+        Get a concise summary of the current session conversation for context.
+        
+        Args:
+            max_entries: Maximum number of recent conversation entries to include
+            
+        Returns:
+            Formatted string containing session conversation summary
+        """
+        if not self.enable_persistence or not self.persistent_memory:
+            return "Memory system not available. Current conversation only."
         
         try:
             context = self.persistent_memory.get_context_summary()
-            historical = self.persistent_memory.get_historical_context()
             
-            return {
-                "enabled": True,
-                "session_id": context.get("session_id"),
-                "session_exchanges": context.get("total_exchanges", 0),
-                "recent_sessions": historical.get("total_sessions", 0),
-                "success_rate": context.get("success_rate", 0)
-            }
+            if context.get("entry_count", 0) == 0:
+                return "New session - no previous conversation history."
+            
+            # Build summary
+            summary_parts = []
+            
+            # Session overview
+            entry_count = context.get("entry_count", 0)
+            success_rate = context.get("success_rate", 0)
+            session_duration = context.get("session_duration", "unknown")
+            
+            summary_parts.append(f"📊 Current Session: {entry_count} exchanges, {success_rate:.1%} success rate, {session_duration}")
+            
+            # Key topics
+            key_topics = context.get("key_topics", [])
+            if key_topics:
+                summary_parts.append(f"🎯 Key Topics: {', '.join(key_topics[:3])}")
+            
+            # Recent tools used
+            recent_tools = context.get("recent_tool_usage", [])
+            if recent_tools:
+                summary_parts.append(f"🔧 Recent Tools: {', '.join(recent_tools[:4])}")
+            
+            # Conversation flow patterns
+            flow_patterns = context.get("conversation_flow", [])
+            if flow_patterns:
+                summary_parts.append(f"📈 Flow: {'; '.join(flow_patterns[:2])}")
+            
+            # Recent conversation entries for detailed context
+            if hasattr(self.persistent_memory, 'current_session') and self.persistent_memory.current_session:
+                recent_entries = self.persistent_memory.current_session[-max_entries:]
+                if recent_entries:
+                    summary_parts.append("\n🔄 Recent Conversation Context:")
+                    for i, entry in enumerate(recent_entries, 1):
+                        # Truncate long queries/responses for summary
+                        query_preview = entry.user_query[:80] + "..." if len(entry.user_query) > 80 else entry.user_query
+                        response_preview = entry.agent_response[:80] + "..." if len(entry.agent_response) > 80 else entry.agent_response
+                        
+                        status_icon = "✅" if entry.success else "❌"
+                        tools_info = f" [{', '.join(entry.tools_used[:2])}]" if entry.tools_used else ""
+                        
+                        summary_parts.append(f"   {i}. {status_icon} User: {query_preview}")
+                        summary_parts.append(f"      Agent: {response_preview}{tools_info}")
+            
+            return "\n".join(summary_parts)
+            
         except Exception as e:
-            return {"enabled": False, "error": str(e)}
+            return f"Error retrieving session summary: {str(e)}"
+    
+    def get_conversation_context_for_prompt(self) -> str:
+        """
+        Get conversation context specifically formatted for system prompt injection.
+        
+        Returns:
+            Formatted context string for system prompt
+        """
+        if not self.enable_persistence or not self.persistent_memory:
+            return ""
+        
+        try:
+            context = self.persistent_memory.get_context_summary()
+            
+            if context.get("entry_count", 0) == 0:
+                return ""
+            
+            # Build context for system prompt
+            context_lines = []
+            
+            # Session statistics
+            entry_count = context.get("entry_count", 0)
+            success_rate = context.get("success_rate", 0)
+            key_topics = context.get("key_topics", [])
+            
+            context_lines.append(f"🧠 CURRENT SESSION MEMORY:")
+            context_lines.append(f"   • {entry_count} previous exchanges in this session")
+            context_lines.append(f"   • {success_rate:.1%} success rate")
+            
+            if key_topics:
+                context_lines.append(f"   • Focus areas: {', '.join(key_topics[:3])}")
+            
+            # Recent successful approaches
+            recent_patterns = context.get("recent_patterns", [])
+            if recent_patterns:
+                context_lines.append(f"   • Recent patterns: {'; '.join(recent_patterns[:2])}")
+            
+            # Tools that have been effective
+            recent_tools = context.get("recent_tool_usage", [])
+            if recent_tools:
+                context_lines.append(f"   • Effective tools in this session: {', '.join(recent_tools[:3])}")
+            
+            context_lines.append("")  # Add spacing
+            
+            return "\n".join(context_lines)
+            
+        except Exception as e:
+            return f"📝 Note: Memory context unavailable ({str(e)})\n"
 
 
 # Backward compatibility alias

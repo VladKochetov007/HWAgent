@@ -100,37 +100,78 @@ MEMORY USAGE GUIDELINES:
             
             context_lines = []
             
-            # Session context
+            # Current session context - more detailed information
             session_context = context_data.get('session_context', {})
             if session_context:
-                session_summary = session_context.get('summary', '')
-                if session_summary and session_summary != 'No conversation entries found.':
-                    context_lines.append(f"📋 Current Session Summary: {session_summary}")
-                
-                # Recent tools used
-                recent_tools = session_context.get('recent_tool_usage', [])
-                if recent_tools:
-                    tools_str = ", ".join(recent_tools[:5])  # Limit to 5 recent tools
-                    context_lines.append(f"🔧 Recently Used Tools: {tools_str}")
+                total_exchanges = session_context.get('total_exchanges', 0)
+                if total_exchanges > 0:
+                    context_lines.append(f"📋 Current Session: {total_exchanges} exchanges completed")
+                    
+                    # Task types in current session
+                    task_types = session_context.get('task_types', [])
+                    if task_types:
+                        task_str = ", ".join(task_types)
+                        context_lines.append(f"🎯 Session Task Types: {task_str}")
+                    
+                    # Success rate
+                    success_rate = session_context.get('success_rate', 0)
+                    context_lines.append(f"✅ Session Success Rate: {success_rate:.1%}")
+                    
+                    # Recent tools used
+                    tools_used = session_context.get('tools_used', [])
+                    if tools_used:
+                        tools_str = ", ".join(tools_used[:8])  # Limit to 8 tools
+                        context_lines.append(f"🔧 Session Tools Used: {tools_str}")
             
-            # Historical context
+            # Historical context - patterns and insights
             historical_context = context_data.get('historical_context', {})
             if historical_context:
-                frequent_patterns = historical_context.get('frequent_patterns', [])
-                if frequent_patterns:
-                    patterns_str = "; ".join(frequent_patterns[:3])  # Limit to 3 patterns
-                    context_lines.append(f"🔄 Frequent Patterns: {patterns_str}")
-                
-                successful_approaches = historical_context.get('successful_approaches', [])
-                if successful_approaches:
-                    approaches_str = "; ".join(successful_approaches[:3])  # Limit to 3 approaches
-                    context_lines.append(f"✅ Previous Successful Approaches: {approaches_str}")
+                total_sessions = historical_context.get('total_sessions', 0)
+                if total_sessions > 0:
+                    context_lines.append(f"📈 Historical: {total_sessions} recent sessions")
+                    
+                    # Frequent task patterns
+                    frequent_tasks = historical_context.get('frequent_tasks', [])
+                    if frequent_tasks:
+                        # frequent_tasks is list of (task_type, count) tuples
+                        task_summary = []
+                        for task_info in frequent_tasks[:3]:  # Top 3 task types
+                            if isinstance(task_info, (list, tuple)) and len(task_info) >= 2:
+                                task_type, count = task_info[0], task_info[1]
+                                task_summary.append(f"{task_type}({count})")
+                            elif isinstance(task_info, str):
+                                task_summary.append(task_info)
+                        
+                        if task_summary:
+                            context_lines.append(f"🔄 Frequent Tasks: {', '.join(task_summary)}")
             
-            # Insights
-            insights = context_data.get('insights', [])
+            # Context insights if available
+            insights = context_data.get('context_insights', [])
             if insights:
-                insights_str = "; ".join(insights[:2])  # Limit to 2 insights
+                insights_str = "; ".join(insights[:2])  # Limit to 2 key insights
                 context_lines.append(f"💡 Key Insights: {insights_str}")
+            
+            # Recent patterns from session
+            session_patterns = session_context.get('recent_patterns', [])
+            if session_patterns:
+                patterns_str = "; ".join(session_patterns[:2])  # Limit to 2 patterns
+                context_lines.append(f"🎨 Recent Patterns: {patterns_str}")
+            
+            # Memory availability status
+            memory_available = context_data.get('persistent_memory_available', False)
+            if memory_available:
+                context_lines.append("🧠 Persistent Memory: Active & Learning")
+            
+            # Add conversation continuity instruction
+            if context_lines:
+                context_lines.insert(0, "🔗 CONVERSATION CONTINUITY:")
+                context_lines.append("")
+                context_lines.append("MEMORY USAGE INSTRUCTIONS:")
+                context_lines.append("- Reference previous work when relevant to current task")
+                context_lines.append("- Build upon established concepts and solutions") 
+                context_lines.append("- Avoid re-explaining concepts already covered in this session")
+                context_lines.append("- Maintain consistent style and approach established in session")
+                context_lines.append("- Use memory tool if you need to search for specific past interactions")
             
             return "\n".join(context_lines) if context_lines else ""
             
@@ -582,10 +623,16 @@ class ReActAgent:
         
         # Build system prompt with memory context
         self.system_prompt_builder = SystemPromptBuilder(tool_manager, self.message_manager, self.conversation_manager)
-        system_prompt = self.system_prompt_builder.build_system_prompt(base_system_prompt, agent_prompts)
+        
+        # Store base prompt and agent prompts for dynamic system prompt building
+        self.base_system_prompt = base_system_prompt
+        self.agent_prompts = agent_prompts
+        
+        # Build initial system prompt (will be updated with memory context for each request)
+        initial_system_prompt = self.system_prompt_builder.build_system_prompt(base_system_prompt, agent_prompts)
         
         # Initialize conversation
-        self.conversation_manager.initialize_with_system_prompt(system_prompt)
+        self.conversation_manager.initialize_with_system_prompt(initial_system_prompt)
         
         # Initialize iteration processor
         self.iteration_processor = IterationProcessor(
@@ -659,6 +706,18 @@ class ReActAgent:
         Returns:
             Final response from agent
         """
+        # Update system prompt with current memory context
+        updated_system_prompt = self.build_system_prompt(user_input)
+        
+        # Update the conversation with the new system prompt
+        conversation_history = self.conversation_manager.get_conversation_history()
+        if conversation_history and conversation_history[0]["role"] == "system":
+            # Replace the existing system prompt
+            conversation_history[0]["content"] = updated_system_prompt
+        else:
+            # Insert system prompt at the beginning
+            conversation_history.insert(0, {"role": "system", "content": updated_system_prompt})
+        
         # Add user message to conversation
         self.conversation_manager.add_user_message(user_input)
         
@@ -676,6 +735,10 @@ class ReActAgent:
         max_consecutive_errors = agent_config.get_max_consecutive_errors()
         max_total_empty_responses = agent_config.get_max_total_empty_responses()
         max_iterations = agent_config.get_max_iterations()
+        
+        final_response = None
+        success = True
+        error_message = None
         
         for iteration in range(1, max_iterations + 1):
             agent_config = get_agent_config()
@@ -731,7 +794,9 @@ class ReActAgent:
                             if debug_enabled and verbose_iteration:
                                 print(f"[DEBUG] ReActAgent: Final iteration, returning result")
                         
-                        return enhanced_result
+                        final_response = enhanced_result
+                        success = True
+                        break
                     else:
                         if debug_enabled and verbose_iteration:
                             print(f"[DEBUG] ReActAgent: Got empty result, incrementing counters")
@@ -749,19 +814,28 @@ class ReActAgent:
                     empty_term_msg = agent_config.get_message("too_many_empty_responses")
                     print(empty_term_msg)
                     self.conversation_manager.add_system_note(empty_term_msg)
-                    return empty_term_msg
+                    final_response = empty_term_msg
+                    success = False
+                    error_message = "Too many empty responses"
+                    break
                 
                 if total_empty_responses >= agent_config.get_max_total_empty_responses():
                     total_empty_msg = agent_config.get_message("too_many_total_empty_responses")
                     print(total_empty_msg)
                     self.conversation_manager.add_system_note(total_empty_msg)
-                    return total_empty_msg
+                    final_response = total_empty_msg
+                    success = False
+                    error_message = "Too many total empty responses"
+                    break
                 
                 if consecutive_errors >= agent_config.get_max_consecutive_errors():
                     error_term_msg = agent_config.get_message("too_many_consecutive_errors")
                     print(error_term_msg)
                     self.conversation_manager.add_system_note(error_term_msg)
-                    return error_term_msg
+                    final_response = error_term_msg
+                    success = False
+                    error_message = "Too many consecutive errors"
+                    break
                     
             except Exception as e:
                 consecutive_errors += 1
@@ -785,13 +859,75 @@ class ReActAgent:
                 if consecutive_errors >= max_consecutive_errors:
                     error_term_msg = agent_config.get_message("too_many_consecutive_errors")
                     print(error_term_msg)
-                    return error_term_msg
+                    final_response = error_term_msg
+                    success = False
+                    error_message = f"Consecutive errors: {str(e)}"
+                    break
         
-        # If we've exhausted all iterations without a satisfactory result
-        if agent_config.is_smart_completion_enabled():
-            return agent_config.get_polite_completion_request()
-        else:
-            return agent_config.get_message("max_iterations_reached")
+        # If we've exhausted all iterations without a satisfactory result and haven't set final_response
+        if final_response is None:
+            if agent_config.is_smart_completion_enabled():
+                final_response = agent_config.get_polite_completion_request()
+            else:
+                final_response = agent_config.get_message("max_iterations_reached")
+            success = False
+            error_message = "Max iterations reached"
+        
+        # ✅ SAVE TO PERSISTENT MEMORY - Critical for complete conversation memory
+        try:
+            # Determine task type from user input
+            task_type = self._determine_task_type(user_input)
+            
+            # Complete conversation turn and save to persistent memory
+            if hasattr(self.conversation_manager, 'complete_conversation_turn'):
+                self.conversation_manager.complete_conversation_turn(
+                    agent_response=final_response,
+                    task_type=task_type,
+                    success=success,
+                    error_message=error_message
+                )
+        except Exception as e:
+            # Don't fail the response if memory saving fails, just log
+            print(f"Warning: Could not save conversation to memory: {e}")
+        
+        return final_response
+    
+    def _determine_task_type(self, user_input: str) -> str:
+        """Determine task type from user input for memory categorization."""
+        user_input_lower = user_input.lower()
+        
+        # Check for mathematical/technical keywords
+        if any(keyword in user_input_lower for keyword in 
+               ['calculus', 'derivative', 'integral', 'matrix', 'equation', 'solve', 'calculate', 
+                'математика', 'интеграл', 'производная', 'уравнение', 'вычисли', 'реши']):
+            return "mathematics"
+        
+        # Check for programming/coding keywords
+        if any(keyword in user_input_lower for keyword in 
+               ['code', 'program', 'python', 'javascript', 'algorithm', 'function',
+                'код', 'программа', 'алгоритм', 'функция']):
+            return "programming"
+        
+        # Check for physics keywords
+        if any(keyword in user_input_lower for keyword in 
+               ['physics', 'force', 'energy', 'momentum', 'velocity', 'acceleration',
+                'физика', 'сила', 'энергия', 'скорость', 'ускорение']):
+            return "physics"
+        
+        # Check for document creation keywords
+        if any(keyword in user_input_lower for keyword in 
+               ['create document', 'write report', 'latex', 'pdf', 'document',
+                'создай документ', 'напиши отчет', 'документ']):
+            return "document_creation"
+        
+        # Check for data analysis keywords
+        if any(keyword in user_input_lower for keyword in 
+               ['analyze', 'data', 'chart', 'graph', 'plot', 'statistics',
+                'анализ', 'данные', 'график', 'диаграмма', 'статистика']):
+            return "data_analysis"
+        
+        # Default to general
+        return "general"
     
     def clear_context(self) -> None:
         """Clear conversation context but keep system prompt."""
@@ -821,4 +957,38 @@ class ReActAgent:
     @enable_streaming.setter
     def enable_streaming(self, value: bool) -> None:
         """Set streaming status."""
-        self.set_streaming_enabled(value) 
+        self.set_streaming_enabled(value)
+
+    def build_system_prompt(self, user_query: str) -> str:
+        """Build system prompt with memory context"""
+        # Get base system prompt
+        base_prompt = self.system_prompt_builder.build_system_prompt(self.base_system_prompt, self.agent_prompts)
+        
+        # Get memory context from conversation manager
+        memory_context = ""
+        if hasattr(self.conversation_manager, 'get_conversation_context_for_prompt'):
+            memory_context = self.conversation_manager.get_conversation_context_for_prompt()
+        
+        # Inject memory context into system prompt if available
+        if memory_context:
+            # Find a good place to inject memory context (after the memory section)
+            memory_injection_point = base_prompt.find("**MEMORY-POWERED RESPONSE STRUCTURE:**")
+            if memory_injection_point != -1:
+                # Find the end of the memory section
+                next_section = base_prompt.find("**🚨🔥 CRITICAL:", memory_injection_point)
+                if next_section != -1:
+                    # Inject memory context before the next major section
+                    injection_text = f"\n\n{memory_context}\n"
+                    base_prompt = base_prompt[:next_section] + injection_text + base_prompt[next_section:]
+                else:
+                    # Fallback: append to the end of memory section
+                    base_prompt = base_prompt + f"\n\n{memory_context}\n"
+            else:
+                # Fallback: append at the beginning after the title
+                title_end = base_prompt.find("**🧠 COMPLETE CONVERSATION MEMORY SYSTEM 🧠**")
+                if title_end != -1:
+                    title_end = base_prompt.find("\n", title_end) + 1
+                    injection_text = f"\n{memory_context}\n"
+                    base_prompt = base_prompt[:title_end] + injection_text + base_prompt[title_end:]
+        
+        return base_prompt 

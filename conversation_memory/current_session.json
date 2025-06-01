@@ -1,14 +1,53 @@
 [
   {
-    "timestamp": "2025-05-31T22:11:52.779728",
-    "user_query": "Test query for memory system",
-    "agent_response": "Test response with LaTeX compilation",
+    "timestamp": "2025-06-01T22:58:26.578633",
+    "user_query": "Create a Python script to calculate factorial",
+    "agent_response": "I'll create a Python script with a factorial function using recursion and iteration methods.",
     "tools_used": [
-      "enhanced_web_search",
-      "memory"
+      "create_file",
+      "run_python"
     ],
-    "task_type": "general",
-    "session_id": "20250531_221152",
+    "task_type": "programming",
+    "session_id": "20250601_225826",
+    "success": true,
+    "error_message": null
+  },
+  {
+    "timestamp": "2025-06-01T22:58:26.578854",
+    "user_query": "Plot a graph of y = x^2",
+    "agent_response": "I'll create a matplotlib plot of the quadratic function y = x^2.",
+    "tools_used": [
+      "create_file",
+      "run_python"
+    ],
+    "task_type": "data_analysis",
+    "session_id": "20250601_225826",
+    "success": true,
+    "error_message": null
+  },
+  {
+    "timestamp": "2025-06-01T22:58:51.143008",
+    "user_query": "Create a Python script to calculate factorial",
+    "agent_response": "I'll create a Python script with a factorial function using recursion and iteration methods.",
+    "tools_used": [
+      "create_file",
+      "run_python"
+    ],
+    "task_type": "programming",
+    "session_id": "20250601_225851",
+    "success": true,
+    "error_message": null
+  },
+  {
+    "timestamp": "2025-06-01T22:58:51.143216",
+    "user_query": "Plot a graph of y = x^2",
+    "agent_response": "I'll create a matplotlib plot of the quadratic function y = x^2.",
+    "tools_used": [
+      "create_file",
+      "run_python"
+    ],
+    "task_type": "data_analysis",
+    "session_id": "20250601_225851",
     "success": true,
     "error_message": null
   }
