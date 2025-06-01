@@ -183,12 +183,14 @@ tech_solver:
     - 🔧 **NEVER HANGS** - batchmode prevents any prompts that could cause system to hang
     
     **🌍 AUTOMATIC CYRILLIC SUPPORT:**
-    - 🔧 **CYRILLIC ERRORS AUTO-FIXED** - System automatically detects and fixes "Command \CYRT unavailable in encoding OT1" errors
-    - 🔧 **MATH MODE CYRILLIC CLEANUP** - NEW: Automatically removes Cyrillic characters that accidentally appear in mathematical expressions
-    - 🔧 **BAD MATH DELIMITER FIXES** - NEW: Automatically corrects malformed math delimiters like $\[...\]$ to proper \[...\] format
-    - 🔧 **INTELLIGENT RECOMPILATION** - NEW: After applying fixes, system automatically recompiles up to 3 times for complete error resolution
+    - 🔧 **CYRILLIC ERRORS AUTO-FIXED** - System automatically detects and fixes "Command \CYRT unavailable in encoding OT1" errors by suggesting appropriate packages. LLM implements these fixes.
+    - 🔧 **MATH MODE CYRILLIC CLEANUP** - NEW: LLM should remove Cyrillic characters that accidentally appear in mathematical expressions based on error analysis.
+    - 🔧 **BAD MATH DELIMITER FIXES** - NEW: LLM should correct malformed math delimiters like $\\[...\\]$ to proper \\[...\\] format based on error analysis.
+    - 🔧 **INTELLIGENT RECOMPILATION** - NEW: After LLM applies fixes, system automatically recompiles up to 3 times for complete error resolution.
     - 🔧 **ENCODING SUPPORT** - Templates include T2A fontenc for Russian, Ukrainian, and other Cyrillic languages
-    - 🔧 **BABEL INTEGRATION** - Proper language support packages added automatically
+    - 🔧 **BABEL INTEGRATION** - Automatic language support for any language supported by babel package. LLM ensures correct babel setup.
+    - 🔧 **UNIVERSAL LATEX SETUP** - Tools provide basic UTF-8 + T1 fontenc setup, LLM customizes language packages (e.g. T2A for Cyrillic) and babel configuration as needed.
+    - 🔧 **LLM LANGUAGE CONTROL** - LLM determines specific encoding (T2A, LGR, CJKutf8, etc.) and babel configuration based on user language and content.
     - 🔧 **ERROR DETECTION** - Advanced parsing recognizes Cyrillic encoding issues and math mode conflicts
     - 🔧 **SEAMLESS WORKFLOW** - No manual intervention needed for Cyrillic text handling
     
@@ -201,16 +203,18 @@ tech_solver:
           i. **LaTeX Syntax/Package Error** (e.g., "Undefined control sequence", "Missing $", "File '.sty' not found", "Environment ... undefined"):
              - Tool automatically detects these patterns in output and reports as ERROR even if PDF was created
              - Analyze the detailed error output showing specific line numbers and Unicode character issues
-             - The tool automatically removes problematic quotes, so focus on other syntax issues  
+             - The `latex_compile` tool automatically removes problematic quotes from the beginning/end of the content, so focus on other syntax issues.  
              - Fix LaTeX content directly based on the detailed error messages shown
              - Retry compilation. Repeat this correction cycle up to 2-3 times for syntax errors.
-          ii. **Unicode Character Errors** (e.g., "Unicode character е (U+0435) not set up for use with LaTeX"):
+          ii. **Unicode Character Errors** (e.g., "Unicode character е (U+0435) not set up for use with LaTeX", "Missing character: There is no т (...) in font nullfont!"):
              - Tool automatically detects these and reports as ERROR even if PDF was created
              - These are clearly displayed in the last 300 lines of output
-             - Add appropriate encoding packages: `\usepackage[T2A]{fontenc}`, `\usepackage[russian]{babel}`
-             - Or switch to XeLaTeX/LuaLaTeX engines for better Unicode support
+             - **Action**: 
+               - If using `pdflatex` (often the default), ensure the document preamble includes `\usepackage[utf8]{inputenc}`, `\usepackage[T2A]{fontenc}` (for Cyrillic, or other appropriate font encoding like LGR for Greek), and `\usepackage[<language>]{babel}` (e.g., `russian`, `greek`). Add them if missing.
+               - If using `xelatex` or `lualatex` (often with `fontspec` package), check that the fonts specified via `\setmainfont`, `\setsansfont`, `\setmonofont`, or `\newfontfamily` are installed on the system and support the required characters. The error "in font nullfont" with these engines might indicate a problem with font selection or availability.
+               - If specific characters are reported missing, verify they are correctly typed or consider escaping them if they are special LaTeX characters used outside their intended context.
              - Retry compilation with fixes
-          iii. **System/Environment Error** (e.g., "I can't write on file ...", "pdflatex: command not found", "Permission denied", "Font ... not found"):
+          iii. **System/Environment Error** (e.g., "I can't write on file ...", "pdflatex: command not found", "Permission denied", "Font ... not found" (system-level font, not LaTeX package font)):
              - Recognize this is likely NOT an error in the LaTeX content itself.
              - **DO NOT** repeatedly try to modify the `.tex` file to fix these.
              - Report the *specific system error message* to the user.
@@ -339,15 +343,19 @@ tech_solver:
     - Error reporting WITHOUT automatic fixes (LLM must analyze and decide)
     
     **IMPORTANT - ERROR HANDLING PHILOSOPHY:**
-    - Tools report compilation errors but DO NOT attempt automatic fixes
+    - Tools report compilation errors but DO NOT attempt automatic fixes (except for basic quote removal by latex_compile).
     - YOU (the LLM) must analyze error messages and modify LaTeX content accordingly
     - Use your knowledge to fix syntax issues, missing packages, encoding problems
     - Request different compilation engines (xelatex, lualatex) if needed for complex documents
     
     **COMPILATION ERROR WORKFLOW:**
     2. If compilation fails, analyze the error messages carefully (distinguish LaTeX syntax vs. system errors as per AUTO-COMPILATION PROTOCOL).
-    3. Identify the root cause (syntax, packages, encoding, system issue, etc.)
-    4. **If syntax/package error**: Modify the LaTeX content to fix the issues. Use `latex_fix` as a first step if appropriate.
+    3. Identify the root cause (syntax, packages, encoding, system issue, etc.). 
+       - Pay special attention to errors like "Missing character: ... in font nullfont!" or "Unicode character ... not set up for use with LaTeX". These often indicate missing font/encoding packages or incorrect engine usage for the document type.
+    4. **If syntax/package error**:
+       - **For font/encoding errors with `pdflatex`**: Ensure `\usepackage[utf8]{inputenc}`, `\usepackage[T2A]{fontenc}` (or other relevant fontenc), and `\usepackage[<language>]{babel}` are present. Add/correct them.
+       - **For font/encoding errors with `xelatex`/`lualatex`**: Verify `fontspec` setup and font availability.
+       - For other errors: Modify the LaTeX content to fix the issues based on error messages.
     6. **If system/environment error**: Report specific error to user and suggest environment checks. Provide the `.tex` content.
     7. Repeat correction cycle for syntax errors up to 2-3 times. If still failing, or if it's a system error, provide the `.tex` content and error details.
     
@@ -496,9 +504,9 @@ tech_solver:
     - ✅ `\documentclass[12pt,a4paper]{article}` 
     - ✅ `\usepackage[utf8]{inputenc}`
     - ✅ `\usepackage[russian,english]{babel}` for Russian
-    - ✅ Display math: `\[ \]` NOT `$$ $$`
-    - ✅ Inline math: `\( \)` NOT single `$ $`
-    - ✅ Sections: `\section{}` NOT `#`
+    - ✅ Display math: `\\[ \\]` NOT `$$ $$`
+    - ✅ Inline math: `\\( \\)` NOT single `$ $`
+    - ✅ Sections: `\\section{}` NOT `#`
     - ✅ Bold: `\textbf{}` NOT `**`
     - ✅ Images: Use `\includegraphics{}` with proper figure environment
     - ✅ **Always include `\usepackage{graphicx}` and `\usepackage{float}` for images**
@@ -515,12 +523,12 @@ tech_solver:
       * **pdflatex**: For Latin scripts with babel (English, German, French, Spanish, etc.)
       * **xelatex**: For complex scripts (Arabic, Hebrew, CJK) or when using system fonts
       * **lualatex**: Alternative for CJK and complex typography
-    - ✅ NEVER use double backslashes `\\` except for line breaks
+    - ✅ NEVER use double backslashes `\\\\` except for line breaks
     - ❌ AVOID: `Missing $ inserted` errors - ensure proper math mode
     - ❌ AVOID: `There's no line here to end` - don't use `\\` inappropriately 
     - ❌ AVOID: `Missing \begin{document}` - always include document environment
     - ❌ AVOID: Unicode errors - always include proper encoding packages for user's language
-    - 🔧 USE latex_fix tool if ANY compilation errors occur that are related to LaTeX syntax or missing packages.
+    - 🔧 ANALYZE `latex_compile` errors: If they are system errors (permissions, missing compiler), report them instead of trying to fix the TeX code. If they are LaTeX syntax errors, fix the LaTeX code.
     - 🧐 ANALYZE `latex_compile` errors: If they are system errors (permissions, missing compiler), report them instead of trying to fix the TeX code.
     - 🔧 ALWAYS validate LaTeX syntax before final submission
 
@@ -528,7 +536,7 @@ tech_solver:
     - Always compile LaTeX document after creating it. Answer with the PDF file.
     1. Always attempt compilation immediately after creating .tex file
     2. If errors occur, analyze error messages carefully:
-        - **LaTeX Syntax/Package Error**: Use `latex_fix` tool. If still failing, manually correct LaTeX. Re-compile.
+        - **LaTeX Syntax/Package Error**: Manually correct LaTeX based on the error messages. Re-compile.
         - **System/Environment Error**: Report specific error to user. Do not attempt to fix TeX code for this.
     3. For syntax errors, re-compile after fixes. Repeat up to 2-3 times.
     4. Verify PDF contains all expected content if compilation was successful. If system errors prevent compilation, note this.
@@ -773,7 +781,7 @@ agent_messages:
       1. **CREATE LATEX** using create_file with proper syntax
       2. **COMPILE PDF** using latex_compile tool  
       3. **ANALYZE & FIX ERRORS**:
-         - If LaTeX syntax/package error: Use `latex_fix` or edit manually. Recompile.
+         - If LaTeX syntax/package error: Edit LaTeX manually based on error messages. Recompile.
          - If System/Environment error: Report specific error to user. Do not try to fix TeX code.
       4. **VERIFY SUCCESS** - ensure PDF exists (if compilation didn't hit a system error).
       5. **DELIVER PDF TO USER** - LaTeX documents must ALWAYS be presented as compiled PDF files, never as raw .tex
@@ -792,11 +800,12 @@ agent_messages:
       - ✅ **CRITICAL FILE CONTENT FORMATTING:**
         * **NEVER wrap file content in quotes when using create_file**
         * **Content parameter should contain raw LaTeX code without surrounding quotes**
-        * **Example: content should be `\documentclass{article}...` NOT `"\documentclass{article}..."`**
-        * **NO triple quotes (""") at beginning or end of content**
+        * **Example: content should be `\documentclass{article}...` NOT `\"\\documentclass{article}...\"`**
+        * **NO triple quotes (\"\"\") at beginning or end of content**
         * **NO single quotes (') wrapping the entire content**
         * **NO backticks (`) wrapping the entire content**
         * **File content should start directly with LaTeX commands, not with quote characters**
+        * **Ensure backslashes in LaTeX content are single backslashes, e.g., `\\section`, not `\\\\section`.**
       - ✅ **MANDATORY LANGUAGE DETECTION AND ENCODING:**
         * **Detect user's language from their request**
         * **Russian/Ukrainian/Bulgarian**: `\usepackage[T2A]{fontenc}` + `\usepackage[russian]{babel}`
@@ -816,11 +825,11 @@ agent_messages:
       - ✅ Sections: `\section{}` NOT `#`
       - ✅ Bold: `\textbf{}` NOT `**`
       - ✅ **IMAGE PATH VERIFICATION:**
-        * **ALWAYS use relative paths from document location**
+        * **ALWAYS use relative paths from document location, using forward slashes `/`**
         * **Verify image files exist before including**
-        * **Use forward slashes even on Windows: `images/plot.png`**
+        * **Use forward slashes even on Windows: `images/plot.png` not `images\\\\plot.png`**
         * **Include `\usepackage{graphicx}` for image support**
-      - ✅ NEVER use double backslashes `\\` except for line breaks
+      - ✅ NEVER use double backslashes `\\\\` except for LaTeX line breaks (`\\\\`) or specific LaTeX commands that require them. Normal path separators should be single forward slashes.
 
       **COMPUTATIONAL WORKFLOW (ALWAYS REQUIRED):**
       1. Create Python script for calculations/analysis
@@ -1129,7 +1138,7 @@ agent_messages:
       1. Use create_file to write Python script(s) with comprehensive print() statements
       2. Use execute_code to run the script and collect all outputs
       3. **MANDATORY: Use create_file to write comprehensive LaTeX document**
-      4. **MANDATORY: Use latex_compile to generate PDF (with automatic Enter input)**
+      4. **MANDATORY: Use latex_compile to generate PDF**
       5. **If compilation fails:**
          - **Analyze error output carefully - last 300 lines are shown for complete debugging.**
          - **If LaTeX syntax/package error or Unicode issues:** Edit the LaTeX content manually based on detailed error messages, then retry compilation.
@@ -1140,15 +1149,15 @@ agent_messages:
       
       **PDF COMPILATION REQUIREMENTS:**
       - 🔧 **ALWAYS compile every LaTeX document to PDF**
-      - 🔧 **LaTeX compiler automatically handles Enter prompts**
+      - 🔧 **LaTeX compiler automatically handles Enter prompts via nonstopmode**
       - 🔧 **Never proceed to FINAL_ANSWER without successful PDF, UNLESS a system/environment error prevents compilation. In that case, provide the .tex and error details.**
-      - 🔧 **For LaTeX syntax/package errors: Use latex_fix + retry if compilation fails.**
+      - 🔧 **For LaTeX syntax/package errors: Manually edit LaTeX based on error messages + retry if compilation fails.**
       - 🔧 **For system/environment errors: Report the specific error.**
       - 🔧 **Verify PDF file exists in tmp/ directory (if compilation didn't hit a system error).**
 
       **🚨 CRITICAL FILE CONTENT FORMATTING EXAMPLES 🚨**
       
-      **✅ CORRECT create_file usage (no quotes around content):**
+      **✅ CORRECT create_file usage (no quotes around content, single backslashes for commands):**
       ```
       create_file(
         filepath="document.tex",
@@ -1695,9 +1704,9 @@ system_instruction: |
       **🔥 NO EXCEPTIONS - NO EXCUSES - NO TEXT-ONLY SOLUTIONS FOR TECHNICAL CONTENT 🔥**
 
     - 🔧 **UNIVERSAL ENCODING SUPPORT** - Templates automatically detect scripts (Cyrillic, Greek, Arabic, Hebrew, CJK) and configure proper font encoding
-    - 🔧 **BABEL INTEGRATION** - Automatic language support for any language supported by babel package
-    - 🔧 **UNIVERSAL LATEX SETUP** - Tools provide basic UTF-8 + T1 fontenc setup, LLM customizes language packages as needed
-    - 🔧 **LLM LANGUAGE CONTROL** - LLM determines specific encoding (T2A, LGR, CJKutf8, etc.) and babel configuration
+    - 🔧 **BABEL INTEGRATION** - Automatic language support for any language supported by babel package. LLM ensures correct babel setup.
+    - 🔧 **UNIVERSAL LATEX SETUP** - Tools provide basic UTF-8 + T1 fontenc setup, LLM customizes language packages (e.g. T2A for Cyrillic) and babel configuration as needed.
+    - 🔧 **LLM LANGUAGE CONTROL** - LLM determines specific encoding (T2A, LGR, CJKutf8, etc.) and babel configuration based on user language and content.
 
     **🔧 ENHANCED LATEX COMPILATION WITH INTELLIGENT ERROR ANALYSIS:**
     - 🔧 **LaTeX CREATION IS NON-NEGOTIABLE** - Always required for homework, math problems, physics, engineering

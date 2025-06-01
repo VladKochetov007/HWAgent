@@ -27,14 +27,10 @@ class LaTeXCompileTool(FileOperationTool):
     
     @property
     def description(self) -> str:
-        return """Compile LaTeX files to PDF. Shows last 300 lines of compilation output.
-        
-        Features:
-        - Automatic quote removal from LaTeX content  
-        - Simple compilation with pdftex/pdflatex/xelatex/lualatex (pdftex by default)
-        - All errors and warnings are shown directly
-        - Shows last 300 lines of output for debugging
-        - Non-interactive mode (nonstopmode) for all engines"""
+        return """Compiles LaTeX files to PDF and shows raw compilation output.
+        Performs a basic automatic removal of common unwanted quotes from the start/end of the LaTeX content before compilation.
+        Shows the last 300 lines of the compilation output (stdout and stderr) for debugging.
+        The LLM should analyze this output to identify and fix any errors."""
     
     @property
     def parameters_schema(self) -> dict[str, Any]:
