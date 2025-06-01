@@ -932,11 +932,6 @@ class HWAgentApp {
                 if(mainContent) mainContent.classList.add('file-preview-active');
             }
             
-            // Add class to main-content to push it left
-            // const mainContent = document.querySelector('.main-content'); // duplicate
-            // if (mainContent) { // duplicate
-                // mainContent.classList.add('file-preview-open'); // deprecated class
-            // }
             this.adjustLayoutForPreview();
             
         } catch (error) {
@@ -1143,35 +1138,6 @@ class HWAgentApp {
             resizerElement: filePreviewResizer
         });
 
-        // Define resize handlers before using them
-        const handlePreviewResize = (e) => {
-            console.log('Preview resize mousemove', {
-                clientX: e.clientX,
-                startX: startX,
-                startWidthPreview: startWidthPreview
-            });
-            if (!isResizingPreview) return;
-            
-            // For right-side panel: moving left increases width, moving right decreases width
-            const dx = startX - e.clientX;  // Positive when moving left
-            const newWidth = Math.max(200, Math.min(window.innerWidth * 0.6, startWidthPreview + dx));
-            
-            console.log('New preview width:', newWidth);
-            filePreviewPanel.style.width = newWidth + 'px';
-            document.documentElement.style.setProperty('--file-preview-width', newWidth + 'px');
-            this.adjustChatElementsPosition();
-        };
-
-        const stopPreviewResize = () => {
-            if (!isResizingPreview) return;
-            console.log('Stopping preview resize');
-            isResizingPreview = false;
-            document.removeEventListener('mousemove', handlePreviewResize);
-            document.removeEventListener('mouseup', stopPreviewResize);
-            document.body.style.cursor = '';
-            localStorage.setItem('filePreviewWidth', filePreviewPanel.style.width);
-        };
-
         if (filePreviewPanel && filePreviewResizer) {
             console.log('Adding mousedown listener to file preview resizer');
             filePreviewResizer.addEventListener('mousedown', (e) => {
@@ -1191,6 +1157,36 @@ class HWAgentApp {
         } else {
             console.warn('File preview resizer elements not found');
         }
+
+        const handlePreviewResize = (e) => {
+            if (!isResizingPreview) return;
+
+            console.log('File preview handlePreviewResize event:', e.clientX);
+
+            const dx = startX - e.clientX; // Reversed for right-side panel pulling left
+            let newWidth = startWidthPreview + dx;
+
+            const minPreviewWidth = parseInt(getComputedStyle(filePreviewPanel).minWidth, 10) || 200;
+            const maxPreviewWidth = window.innerWidth * 0.5; // Example max
+            
+            newWidth = Math.max(minPreviewWidth, Math.min(newWidth, maxPreviewWidth));
+
+            console.log('File preview newWidth:', newWidth, 'dx:', dx, 'startWidthPreview:', startWidthPreview, 'startX:', startX);
+
+            filePreviewPanel.style.width = newWidth + 'px';
+            console.log('File preview panel style.width after set:', filePreviewPanel.style.width);
+            document.documentElement.style.setProperty('--file-preview-width', newWidth + 'px');
+            this.adjustChatElementsPosition();
+        };
+
+        const stopPreviewResize = () => {
+            if (!isResizingPreview) return;
+            isResizingPreview = false;
+            document.removeEventListener('mousemove', handlePreviewResize);
+            document.removeEventListener('mouseup', stopPreviewResize);
+            document.body.style.cursor = '';
+            localStorage.setItem('filePreviewWidth', filePreviewPanel.style.width);
+        };
 
         // Toggle button functionality
         if (toggleBtn) {
@@ -1567,11 +1563,6 @@ class HWAgentApp {
             if(mainContent) mainContent.classList.remove('file-preview-active');
         }
         
-        // Remove class from main-content to restore normal layout
-        // const mainContent = document.querySelector('.main-content'); // duplicate
-        // if (mainContent) { // duplicate
-            // mainContent.classList.remove('file-preview-open'); // deprecated class
-        // }
         this.adjustLayoutForPreview();
         this.adjustChatElementsPosition(); // Adjust positions after closing
     }
