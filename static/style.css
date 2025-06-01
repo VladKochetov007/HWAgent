@@ -1,37 +1,37 @@
 /* Modern CSS Variables */
 :root {
-  --primary-color: #2563eb;
-  --primary-dark: #1d4ed8;
-  --secondary-color: #64748b;
-  --success-color: #10b981;
-  --warning-color: #f59e0b;
-  --error-color: #ef4444;
-  --background-color: #f8fafc;
+  --primary-color: #000000;
+  --primary-dark: #000000;
+  --secondary-color: #cccccc;
+  --success-color: #cccccc;
+  --warning-color: #cccccc;
+  --error-color: #cccccc;
+  --background-color: #ffffff;
   --surface-color: #ffffff;
-  --text-primary: #1e293b;
-  --text-secondary: #64748b;
-  --text-muted: #94a3b8;
-  --border-color: #e2e8f0;
-  --border-light: #f1f5f9;
+  --text-primary: #000000;
+  --text-secondary: #cccccc;
+  --text-muted: #cccccc;
+  --border-color: #cccccc;
+  --border-light: #cccccc;
   --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
   --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
   --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
-  --radius-sm: 0.375rem;
-  --radius-md: 0.5rem;
-  --radius-lg: 0.75rem;
+  --radius-sm: 0.75rem;
+  --radius-md: 1rem;
+  --radius-lg: 1.25rem;
   --font-mono: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
 }
 
 /* Dark mode variables */
 @media (prefers-color-scheme: dark) {
   :root {
-    --background-color: #0f172a;
-    --surface-color: #1e293b;
-    --text-primary: #f1f5f9;
-    --text-secondary: #cbd5e1;
-    --text-muted: #64748b;
-    --border-color: #334155;
-    --border-light: #475569;
+    --background-color: #000000;
+    --surface-color: #212121;
+    --text-primary: #ffffff;
+    --text-secondary: #cccccc;
+    --text-muted: #cccccc;
+    --border-color: #cccccc;
+    --border-light: #cccccc;
   }
 }
 
@@ -71,14 +71,15 @@ body {
 .app-header {
   background: linear-gradient(135deg, var(--primary-color), var(--primary-dark));
   color: white;
-  padding: 1rem 1.5rem;
+  padding: 0.75rem 1.5rem;
   box-shadow: var(--shadow-md);
   z-index: 1000;
   position: fixed;
   top: 0;
   left: 0;
   right: 0;
-  height: 70px;
+  height: 56px;
+  border-radius: 0 0 var(--radius-md) var(--radius-md);
 }
 
 .header-content {
@@ -87,12 +88,14 @@ body {
   align-items: center;
   max-width: 1400px;
   margin: 0 auto;
+  height: 100%;
 }
 
 .header-left {
   display: flex;
   align-items: center;
   gap: 1rem;
+  height: 100%;
 }
 
 .header-sidebar-toggle {
@@ -132,11 +135,12 @@ body {
   display: flex;
   align-items: center;
   gap: 0.75rem;
+  height: 100%;
 }
 
 .logo i {
   font-size: 1.75rem;
-  color: #fbbf24;
+  color: #ffffff;
 }
 
 .logo h1 {
@@ -148,8 +152,9 @@ body {
 .status-indicator {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: 0.75rem;
   font-size: 0.875rem;
+  height: 100%;
 }
 
 .status-dot {
@@ -192,9 +197,14 @@ body {
   display: flex;
   flex: 1;
   overflow: hidden;
-  margin-top: 70px;
-  height: calc(100vh - 70px);
+  margin-top: 56px;
+  height: calc(100vh - 56px);
   position: relative;
+  transition: margin-right 0.3s ease;
+}
+
+.main-content.file-preview-open {
+  margin-right: 40%;
 }
 
 /* Sidebar - Fixed positioning with improved animations */
@@ -209,7 +219,7 @@ body {
   display: flex;
   flex-direction: column;
   position: fixed;
-  top: 70px;
+  top: 56px;
   left: 0;
   bottom: 0;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
@@ -361,18 +371,19 @@ body {
   display: none;
 }
 
-/* Chat Container - Adaptive positioning */
+/* Chat Container */
 .chat-container {
-  position: fixed;
-  top: 70px;
-  left: var(--sidebar-width, 300px);
-  right: 0;
-  bottom: 0;
+  flex: 1;
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  transition: left 0.25s ease;
-  background-color: var(--background-color);
+  background: var(--background-color);
+  position: relative;
+  transition: margin-right 0.3s ease;
+  border-radius: var(--radius-lg) 0 0 0;
+  margin: 0.5rem 0 0 0.5rem;
+  background: var(--surface-color);
+  box-shadow: var(--shadow-md);
 }
 
 /* When sidebar is collapsed */
@@ -463,7 +474,7 @@ body {
 }
 
 .message.assistant .message-avatar {
-  background: linear-gradient(135deg, var(--secondary-color), #475569);
+  background: linear-gradient(135deg, var(--secondary-color), #cccccc);
 }
 
 .message-content {
@@ -497,9 +508,10 @@ body {
 }
 
 .message.user .message-text pre {
-  background-color: rgba(255, 255, 255, 0.1);
-  border-color: rgba(255, 255, 255, 0.2);
-  color: #e2e8f0;
+  background: rgba(0, 0, 0, 0.05);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  color: #cccccc;
 }
 
 .message-text code {
@@ -512,9 +524,8 @@ body {
 }
 
 .message.user .message-text code {
-  background-color: rgba(255, 255, 255, 0.1);
-  border-color: rgba(255, 255, 255, 0.2);
-  color: #e2e8f0;
+  background: rgba(0, 0, 0, 0.05);
+  color: #cccccc;
 }
 
 .message-time {
@@ -643,13 +654,13 @@ body {
 
 .chat-input-wrapper {
   display: flex;
-  align-items: stretch;
-  gap: 0.75rem;
-  background-color: var(--background-color);
+  align-items: flex-end;
+  background: var(--surface-color);
   border: 2px solid var(--border-color);
   border-radius: var(--radius-lg);
-  padding: 0.75rem;
-  transition: border-color 0.2s ease;
+  overflow: hidden;
+  transition: all 0.2s ease;
+  box-shadow: var(--shadow-sm);
 }
 
 .chat-input-wrapper:focus-within {
@@ -660,16 +671,16 @@ body {
   flex: 1;
   border: none;
   outline: none;
-  background: transparent;
+  padding: 1rem 1.25rem;
   font-size: 1rem;
   line-height: 1.5;
+  background: transparent;
   color: var(--text-primary);
   resize: none;
   min-height: 24px;
-  max-height: 150px;
+  max-height: 120px;
   font-family: inherit;
-  transition: all 0.3s ease;
-  padding: 0.125rem 0;
+  border-radius: var(--radius-lg);
 }
 
 #messageInput:disabled {
@@ -708,21 +719,20 @@ body {
 }
 
 .input-actions button {
-  width: 40px;
-  height: 40px;
+  background: var(--primary-color);
   border: none;
-  border-radius: var(--radius-md);
-  background-color: var(--primary-color);
   color: white;
+  padding: 0.875rem 1rem;
   cursor: pointer;
+  transition: all 0.2s ease;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   font-size: 1rem;
-  opacity: 1;
-  position: relative;
-  overflow: hidden;
+  min-width: 44px;
+  height: 44px;
+  border-radius: var(--radius-md);
+  margin: 0.5rem;
 }
 
 .input-actions button:hover:not(:disabled) {
@@ -812,7 +822,7 @@ body {
 }
 
 .modal {
-  background-color: var(--surface-color);
+  background: var(--surface-color);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-lg);
   max-width: 500px;
@@ -873,11 +883,14 @@ body {
 }
 
 .btn {
-  padding: 0.5rem 1rem;
-  border: 1px solid var(--border-color);
+  background: var(--primary-color);
+  color: white;
+  border: none;
+  padding: 0.75rem 1.5rem;
   border-radius: var(--radius-md);
-  font-size: 0.875rem;
   cursor: pointer;
+  font-size: 0.875rem;
+  font-weight: 500;
   transition: all 0.2s ease;
 }
 
@@ -966,16 +979,15 @@ body {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 12px 16px;
+    padding: 1rem 1.25rem;
     margin: 0;
     background: var(--surface-color);
     border: 1px solid var(--border-color);
-    border-radius: 6px;
-    transition: opacity 0.2s ease;
-    font-size: 14px;
+    border-radius: var(--radius-md);
+    transition: all 0.2s ease;
     font-weight: 600;
     color: var(--text-primary);
-    opacity: 1;
+    box-shadow: var(--shadow-sm);
 }
 
 .section-header:hover {
@@ -1082,14 +1094,14 @@ body {
 .file-item {
     display: flex;
     align-items: center;
-    padding: 0.75rem;
-    border: 1px solid var(--border-color);
-    border-radius: 4px;
+    padding: 0.875rem 1rem;
     cursor: pointer;
-    transition: opacity 0.2s ease;
-    font-size: 0.875em;
-    background: var(--background-color);
-    opacity: 1;
+    transition: all 0.2s ease;
+    border-radius: var(--radius-md);
+    margin-bottom: 0.5rem;
+    background: var(--surface-color);
+    border: 1px solid var(--border-light);
+    box-shadow: var(--shadow-sm);
 }
 
 .file-item:hover {
@@ -1113,10 +1125,14 @@ body {
     border: 1px solid var(--border-color);
     color: var(--text-secondary);
     padding: 0.5rem 0.75rem;
-    border-radius: 3px;
+    border-radius: var(--radius-md);
     cursor: pointer;
-    transition: opacity 0.2s ease;
-    opacity: 1;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 36px;
+    height: 36px;
 }
 
 .file-explorer-toolbar button:hover:not(:disabled) {
@@ -1128,21 +1144,23 @@ body {
     cursor: not-allowed;
 }
 
-/* File Preview - Minimal */
+/* File Preview - Right Sidebar */
 .file-preview {
     position: fixed;
-    top: 70px; /* Account for header height */
-    right: -50%;
-    width: 50%;
-    height: calc(100vh - 70px); /* Account for header height */
+    top: 56px;
+    right: -40%;
+    width: 40%;
+    height: calc(100vh - 56px);
     background: var(--surface-color);
     border-left: 2px solid var(--border-color);
-    box-shadow: -5px 0 15px rgba(0, 0, 0, 0.2);
-    z-index: 1001; /* Higher than sidebar */
+    box-shadow: -5px 0 15px rgba(0, 0, 0, 0.1);
+    z-index: 999;
     transition: right 0.3s ease;
     overflow: hidden;
     display: flex;
     flex-direction: column;
+    border-radius: var(--radius-lg) 0 0 0;
+    margin-top: 0.5rem;
 }
 
 .file-preview.active {
@@ -1152,12 +1170,13 @@ body {
 .file-preview-header {
     background: var(--primary-color);
     color: white;
-    padding: 1rem;
+    padding: 0.75rem 1.25rem;
     display: flex;
     justify-content: space-between;
     align-items: center;
     border-bottom: 1px solid var(--border-color);
     flex-shrink: 0;
+    border-radius: var(--radius-md) var(--radius-md) 0 0;
 }
 
 #previewFileName {
@@ -1176,7 +1195,7 @@ body {
     color: white;
     cursor: pointer;
     padding: 0.5rem;
-    border-radius: 4px;
+    border-radius: var(--radius-md);
     transition: background-color 0.2s ease;
     font-size: 1.2rem;
     margin-left: 1rem;
@@ -1188,10 +1207,10 @@ body {
 
 #previewFileContent {
     flex: 1;
-    padding: 0; /* Remove padding for better media display */
-    overflow: hidden; /* Changed from auto to hidden for embedded content */
+    padding: 0;
+    overflow: hidden;
     background: var(--background-color);
-    font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+    font-family: var(--font-mono);
     font-size: 0.875rem;
     line-height: 1.5;
     white-space: pre-wrap;
@@ -1200,6 +1219,7 @@ body {
     border: none;
     display: flex;
     flex-direction: column;
+    border-radius: 0 0 0 var(--radius-lg);
 }
 
 /* Special styles for text content in preview */
@@ -1371,11 +1391,13 @@ body {
 }
 
 .tool-item {
-    padding: 0.75rem;
-    background-color: var(--background-color);
-    border: 1px solid var(--border-color);
+    padding: 0.875rem 1rem;
+    background: var(--surface-color);
+    border: 1px solid var(--border-light);
     border-radius: var(--radius-md);
-    font-size: 0.875rem;
+    margin-bottom: 0.5rem;
+    transition: all 0.2s ease;
+    box-shadow: var(--shadow-sm);
 }
 
 .tool-name {
@@ -1423,20 +1445,20 @@ body {
 
 /* Action Buttons - Minimal */
 .action-btn {
+    background: var(--primary-color);
+    color: white;
+    border: none;
+    padding: 0.875rem 1.25rem;
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    font-size: 0.875rem;
+    font-weight: 500;
+    transition: all 0.2s ease;
     display: flex;
     align-items: center;
     gap: 0.5rem;
-    width: 100%;
-    padding: 0.75rem 1rem;
-    border: 1px solid var(--border-color);
-    border-radius: var(--radius-md);
-    background-color: var(--surface-color);
-    color: var(--text-primary);
-    font-size: 0.875rem;
-    cursor: pointer;
-    transition: opacity 0.2s ease;
-    margin-bottom: 0.5rem;
-    opacity: 1;
+    margin-bottom: 0.75rem;
+    box-shadow: var(--shadow-sm);
 }
 
 .action-btn:hover {
@@ -1563,12 +1585,13 @@ body {
 }
 
 .file-attachment-item {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 0.75rem 1rem;
-    border-bottom: 1px solid var(--border-color);
-    transition: background-color 0.2s ease;
+    background: var(--surface-color);
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius-md);
+    padding: 1rem;
+    margin-bottom: 0.75rem;
+    transition: all 0.2s ease;
+    box-shadow: var(--shadow-sm);
 }
 
 .file-attachment-item:last-child {
@@ -1617,14 +1640,17 @@ body {
 }
 
 .file-action-btn {
-    background: none;
+    background: var(--surface-color);
     border: 1px solid var(--border-color);
     color: var(--text-secondary);
+    padding: 0.5rem 0.75rem;
+    border-radius: var(--radius-md);
     cursor: pointer;
-    padding: 0.4rem 0.6rem;
-    border-radius: 4px;
+    font-size: 0.75rem;
     transition: all 0.2s ease;
-    font-size: 0.8rem;
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
 }
 
 .file-action-btn:hover {
@@ -1682,7 +1708,7 @@ body {
     }
     
     .file-preview-header {
-        padding: 0.75rem 1rem;
+        padding: 0.5rem 0.75rem;
     }
     
     #previewFileName {
@@ -1778,21 +1804,69 @@ body {
   }
 }
 
-/* File Preview Overlay */
-.file-preview-overlay {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background-color: rgba(0, 0, 0, 0.3);
-    z-index: 1000;
-    opacity: 0;
-    visibility: hidden;
-    transition: all 0.3s ease;
+/* Theme Classes */
+body.theme-light {
+  --background-color: #ffffff;
+  --surface-color: #ffffff;
+  --text-primary: #000000;
+  --text-secondary: #cccccc;
+  --text-muted: #cccccc;
+  --border-color: #cccccc;
+  --border-light: #cccccc;
 }
 
-.file-preview-overlay.active {
-    opacity: 1;
-    visibility: visible;
+body.theme-dark {
+  --background-color: #000000;
+  --surface-color: #212121;
+  --text-primary: #ffffff;
+  --text-secondary: #cccccc;
+  --text-muted: #cccccc;
+  --border-color: #cccccc;
+  --border-light: #cccccc;
+}
+
+/* Theme Toggle Button */
+.theme-toggle-btn {
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: var(--radius-md);
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: white;
+  transition: all 0.2s ease;
+}
+
+.theme-toggle-btn:hover {
+  background-color: rgba(255, 255, 255, 0.2);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+}
+
+.theme-toggle-btn i {
+  pointer-events: none;
+  font-size: 1.1rem;
+}
+
+/* PDF Preview Objects */
+.pdf-object {
+  width: 100%;
+  height: 100%;
+  border: none;
+  border-radius: 0 0 0 var(--radius-lg);
+}
+
+.pdf-fallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  text-align: center;
+  padding: 2rem;
+  font-size: 0.95rem;
+  color: var(--text-muted);
+  border-radius: 0 0 0 var(--radius-lg);
 } 

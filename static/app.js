@@ -60,6 +60,7 @@ class HWAgentApp {
             sidebarToggle: document.querySelector('.sidebar-toggle'),
             headerSidebarToggle: document.getElementById('headerSidebarToggle'),
             sidebarOverlay: document.getElementById('sidebarOverlay'),
+            themeToggleBtn: document.getElementById('themeToggleBtn'),
             
             // Settings
             sidebarResizer: document.querySelector('.sidebar-resizer'),
@@ -81,7 +82,6 @@ class HWAgentApp {
             
             // File Preview Panel (separate from sidebar)
             filePreview: document.getElementById('filePreview'),
-            filePreviewOverlay: document.getElementById('filePreviewOverlay'),
             previewFileName: document.getElementById('previewFileName'),
             previewFileContent: document.getElementById('previewFileContent'),
             closePreviewBtn: document.getElementById('closePreviewBtn')
@@ -165,10 +165,10 @@ class HWAgentApp {
                 this.closeFilePreview();
             }
         });
-        
-        // Close file preview when clicking on overlay
-        if (this.elements.filePreviewOverlay) {
-            this.elements.filePreviewOverlay.addEventListener('click', () => this.closeFilePreview());
+
+        // Theme toggle button
+        if (this.elements.themeToggleBtn) {
+            this.elements.themeToggleBtn.addEventListener('click', () => this.toggleTheme());
         }
     }
     
@@ -863,7 +863,8 @@ class HWAgentApp {
             
             // Update preview panel - use the main file preview panel, not sidebar elements
             if (this.elements.previewFileName) {
-                this.elements.previewFileName.textContent = filePath;
+                const baseName = filePath.split('/').pop();
+                this.elements.previewFileName.textContent = baseName;
             }
             
             // Handle different file types
@@ -875,28 +876,18 @@ class HWAgentApp {
                     // Remove text-content class for media display
                     this.elements.previewFileContent.className = '';
                     this.elements.previewFileContent.innerHTML = `
-                        <div style="height: 100%; display: flex; flex-direction: column;">
-                            <div style="text-align: center; padding: 1rem; background: var(--background-color); border-bottom: 1px solid var(--border-color); flex-shrink: 0;">
-                                <i class="fas fa-file-pdf" style="color: #dc3545; margin-right: 0.5rem;"></i>
-                                <span style="font-weight: 500;">${filePath}</span>
-                                <a href="/api/fs/tmp/get?path=${encodeURIComponent(filePath)}" target="_blank" 
-                                   style="margin-left: 1rem; color: var(--primary-color); text-decoration: none;">
-                                    <i class="fas fa-external-link-alt"></i> Open in new tab
-                                </a>
-                            </div>
-                            <embed 
-                                src="/api/fs/tmp/get?path=${encodeURIComponent(filePath)}" 
+                        <object data="/api/fs/tmp/get?path=${encodeURIComponent(filePath)}#toolbar=0" 
                                 type="application/pdf" 
-                                style="width: 100%; flex: 1; border: none; min-height: 0;"
-                                title="PDF Preview">
-                                <div style="text-align: center; padding: 2rem;">
-                                    <p>Your browser doesn't support PDF viewing. <a href="/api/fs/tmp/get?path=${encodeURIComponent(filePath)}" target="_blank">Click here to download and open the PDF</a></p>
-                                </div>
-                            </embed>
-                        </div>
+                                class="pdf-object">
+                            <div class="pdf-fallback">
+                                <p>Your browser doesn't support PDF viewing.<br>
+                                   <a href="/api/fs/tmp/get?path=${encodeURIComponent(filePath)}" target="_blank">Click here to download and open the PDF</a>
+                                </p>
+                            </div>
+                        </object>
                     `;
                 }
-            } else if (['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp', 'bmp'].includes(fileExtension)) {
+            } else if (['jpg', 'jpeg', 'png', 'gif', 'bmp', 'svg', 'webp'].includes(fileExtension)) {
                 // For image files, show embedded image viewer
                 if (this.elements.previewFileContent) {
                     // Remove text-content class for media display
@@ -911,7 +902,7 @@ class HWAgentApp {
                                     <i class="fas fa-external-link-alt"></i> Open in new tab
                                 </a>
                             </div>
-                            <div style="flex: 1; display: flex; align-items: center; justify-content: center; padding: 1rem; overflow: auto; background: #f8f9fa;">
+                            <div style="flex: 1; display: flex; align-items: center; justify-content: center; padding: 1rem; overflow: auto; background: #ffffff;">
                                 <img 
                                     src="/api/fs/tmp/get?path=${encodeURIComponent(filePath)}" 
                                     alt="${filePath}"
@@ -936,12 +927,15 @@ class HWAgentApp {
                 }
             }
             
-            // Show the preview panel
+            // Show the preview panel and push main content left
             if (this.elements.filePreview) {
                 this.elements.filePreview.classList.add('active');
             }
-            if (this.elements.filePreviewOverlay) {
-                this.elements.filePreviewOverlay.classList.add('active');
+            
+            // Add class to main-content to push it left
+            const mainContent = document.querySelector('.main-content');
+            if (mainContent) {
+                mainContent.classList.add('file-preview-open');
             }
             
         } catch (error) {
@@ -1473,8 +1467,11 @@ class HWAgentApp {
         if (this.elements.filePreview) {
             this.elements.filePreview.classList.remove('active');
         }
-        if (this.elements.filePreviewOverlay) {
-            this.elements.filePreviewOverlay.classList.remove('active');
+        
+        // Remove class from main-content to restore normal layout
+        const mainContent = document.querySelector('.main-content');
+        if (mainContent) {
+            mainContent.classList.remove('file-preview-open');
         }
     }
 
@@ -1500,6 +1497,43 @@ class HWAgentApp {
         }
     }
 
+    /* -----------------------------------------------------------
+     * Theme Handling
+     * -----------------------------------------------------------*/
+    loadThemePreference() {
+        const stored = localStorage.getItem('hwTheme');
+        if (stored) {
+            this.applyTheme(stored);
+        } else {
+            // Fallback to system preference
+            const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+            this.applyTheme(prefersDark ? 'dark' : 'light');
+        }
+    }
+
+    applyTheme(theme) {
+        const body = document.body;
+        if (theme === 'dark') {
+            body.classList.add('theme-dark');
+            body.classList.remove('theme-light');
+            if (this.elements.themeToggleBtn) {
+                this.elements.themeToggleBtn.innerHTML = '<i class="fas fa-sun"></i>';
+            }
+        } else {
+            body.classList.remove('theme-dark');
+            body.classList.add('theme-light');
+            if (this.elements.themeToggleBtn) {
+                this.elements.themeToggleBtn.innerHTML = '<i class="fas fa-moon"></i>';
+            }
+        }
+        localStorage.setItem('hwTheme', theme);
+    }
+
+    toggleTheme() {
+        const isDark = document.body.classList.contains('theme-dark');
+        this.applyTheme(isDark ? 'light' : 'dark');
+    }
+
     async initialize() {
         // Disable only send button during initialization
         this.setSendButtonInitializing(true);
@@ -1520,6 +1554,9 @@ class HWAgentApp {
         
         // Focus on message input
         this.elements.messageInput.focus();
+        
+        // Apply stored or system theme
+        this.loadThemePreference();
         
         // Re-enable send button after initialization
         this.setSendButtonInitializing(false);
