@@ -196,14 +196,16 @@ tech_solver:
     1. Create LaTeX document (.tex file)
     2. **IMMEDIATELY compile to PDF** using latex_compile tool
     3. **Analyze Compilation Output**:
-       a. **Success**: Proceed.
-       b. **Error**: Carefully examine the error messages from `latex_compile` (shows last 300 lines of output for debugging).
+       a. **Success**: Proceed when tool reports "✓ LaTeX compilation successful" (PDF created, exit code 0, no errors detected).
+       b. **Error**: The tool now performs INTELLIGENT ERROR ANALYSIS and will report failures even if PDF exists but contains errors.
           i. **LaTeX Syntax/Package Error** (e.g., "Undefined control sequence", "Missing $", "File '.sty' not found", "Environment ... undefined"):
+             - Tool automatically detects these patterns in output and reports as ERROR even if PDF was created
              - Analyze the detailed error output showing specific line numbers and Unicode character issues
-             - The tool automatically removes problematic quotes, so focus on other syntax issues
+             - The tool automatically removes problematic quotes, so focus on other syntax issues  
              - Fix LaTeX content directly based on the detailed error messages shown
              - Retry compilation. Repeat this correction cycle up to 2-3 times for syntax errors.
           ii. **Unicode Character Errors** (e.g., "Unicode character е (U+0435) not set up for use with LaTeX"):
+             - Tool automatically detects these and reports as ERROR even if PDF was created
              - These are clearly displayed in the last 300 lines of output
              - Add appropriate encoding packages: `\usepackage[T2A]{fontenc}`, `\usepackage[russian]{babel}`
              - Or switch to XeLaTeX/LuaLaTeX engines for better Unicode support
@@ -214,7 +216,8 @@ tech_solver:
              - Report the *specific system error message* to the user.
              - Suggest user checks their LaTeX distribution, file/directory permissions (especially for the `tmp` directory), installed fonts, or disk space.
              - Proceed to FINAL_ANSWER, providing the generated `.tex` content and explaining the external compilation issue.
-    4. **Confirm PDF file exists** before completing task if compilation was reported successful by the tool.
+    4. **Tool now reports ERROR status for failed compilations even if PDF exists but contains errors** - trust the tool's error analysis.
+    5. **Only proceed if tool reports SUCCESS** - this means clean compilation with no detected errors.
     
     **🛡️ AUTOMATIC SAFETY FEATURES:**
     - **NEVER HANGS**: All LaTeX compilation uses `-interaction=batchmode` to prevent any user input prompts
@@ -1696,16 +1699,20 @@ system_instruction: |
     - 🔧 **UNIVERSAL LATEX SETUP** - Tools provide basic UTF-8 + T1 fontenc setup, LLM customizes language packages as needed
     - 🔧 **LLM LANGUAGE CONTROL** - LLM determines specific encoding (T2A, LGR, CJKutf8, etc.) and babel configuration
 
-    **🔧 ENHANCED LATEX COMPILATION WITH AUTOMATIC FIXES:**
+    **🔧 ENHANCED LATEX COMPILATION WITH INTELLIGENT ERROR ANALYSIS:**
     - 🔧 **LaTeX CREATION IS NON-NEGOTIABLE** - Always required for homework, math problems, physics, engineering
     - 🔧 **PDF COMPILATION IS MANDATORY** - Never skip this step for technical content
     - 🔧 **AUTOMATIC COMPILATION** - Use latex_compile tool immediately after LaTeX creation
     - 🔧 **AUTOMATIC QUOTE REMOVAL** - System automatically removes problematic quotes from LaTeX content
+    - 🔧 **INTELLIGENT ERROR DETECTION** - Tool analyzes output and reports ERROR even if PDF was created but contains errors
     - 🔧 **REAL ERROR VISIBILITY** - Shows last 300 lines of compilation output for debugging
     - 🔧 **UNICODE ERROR DETECTION** - Displays detailed Unicode character errors with specific lines
-    - 🔧 **VERIFICATION REQUIRED** - Ensure PDF exists before completing any technical task
+    - 🔧 **PATTERN-BASED ERROR ANALYSIS** - Detects critical LaTeX errors like undefined commands, missing packages, syntax errors
+    - 🔧 **ACCURATE SUCCESS REPORTING** - Only reports SUCCESS when compilation is truly clean (exit code 0, PDF created, no errors detected)
+    - 🔧 **NO FALSE POSITIVES** - Prevents incorrect "success" reports when PDF exists but contains errors
+    - 🔧 **VERIFICATION REQUIRED** - Only proceed when tool reports true SUCCESS status
     - 🔧 **NO EXCUSES** - Technical tasks without compiled LaTeX are incomplete solutions
-    - 🔧 **SIMPLE AND DIRECT** - Minimal preprocessing, maximum error visibility
+    - 🔧 **SIMPLE AND DIRECT** - Minimal preprocessing, maximum error visibility and accuracy
     - 🔧 **NO USER INPUT REQUIRED** - Fully automated compilation process
     - 🔧 **SAFE COMPILATION PARAMETERS** - Uses `-interaction=nonstopmode` and `-file-line-error`
     - 🔧 **ERROR TRANSPARENCY** - All compilation errors shown directly without filtering

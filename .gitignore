@@ -176,3 +176,4 @@ cython_debug/
 
 # Ignore all files in the tmp directory
 tmp/*
+conversation_memory/*

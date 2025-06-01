@@ -31,9 +31,10 @@ class LaTeXCompileTool(FileOperationTool):
         
         Features:
         - Automatic quote removal from LaTeX content  
-        - Simple compilation with pdflatex/xelatex/lualatex
+        - Simple compilation with pdftex/pdflatex/xelatex/lualatex (pdftex by default)
         - All errors and warnings are shown directly
-        - Shows last 300 lines of output for debugging"""
+        - Shows last 300 lines of output for debugging
+        - Non-interactive mode (nonstopmode) for all engines"""
     
     @property
     def parameters_schema(self) -> dict[str, Any]:
@@ -47,8 +48,8 @@ class LaTeXCompileTool(FileOperationTool):
                 "engine": {
                     "type": "string",
                     "description": "LaTeX engine to use",
-                    "enum": ["pdflatex", "xelatex", "lualatex"],
-                    "default": "pdflatex"
+                    "enum": ["pdftex", "pdflatex", "xelatex", "lualatex"],
+                    "default": "pdftex"
                 }
             },
             "required": ["filepath"]
@@ -79,7 +80,7 @@ class LaTeXCompileTool(FileOperationTool):
     def _execute_impl(self, **kwargs) -> ToolExecutionResult:
         """Execute LaTeX compilation"""
         filepath = kwargs["filepath"]
-        engine = kwargs.get("engine", "pdflatex")
+        engine = kwargs.get("engine", "pdftex")
         
         validation_result = self.validate_parameters(kwargs)
         if validation_result.status == ExecutionStatus.ERROR:
@@ -136,24 +137,34 @@ class LaTeXCompileTool(FileOperationTool):
             pdf_path = os.path.join(self.tmp_directory, f"{file_stem}.pdf")
             pdf_exists = os.path.exists(pdf_path)
             
+            # Analyze compilation output for errors
+            has_errors = self._has_compilation_errors(all_output)
+            
             # Format output
             final_output = f"=== LaTeX Compilation: {file_name} ===\n"
             final_output += f"Engine: {engine}\n"
             final_output += f"Command: {' '.join(cmd)}\n"
             final_output += f"Exit Code: {result.returncode}\n"
             final_output += f"PDF Created: {'Yes' if pdf_exists else 'No'}\n"
+            final_output += f"Errors Detected: {'Yes' if has_errors else 'No'}\n"
             if preprocessing_message:
                 final_output += f"{preprocessing_message}"
             final_output += f"\n{output_header}{shown_output}"
             
-            if result.returncode == 0 and pdf_exists:
+            # Determine success based on exit code, PDF existence, and error analysis
+            if result.returncode == 0 and pdf_exists and not has_errors:
                 return ToolExecutionResult.success(
                     f"✓ LaTeX compilation successful: {file_name}",
                     final_output
                 )
-            elif pdf_exists:
+            elif pdf_exists and not has_errors:
                 return ToolExecutionResult.success(
                     f"⚠ LaTeX compilation completed with warnings: {file_name}",
+                    final_output
+                )
+            elif pdf_exists and has_errors:
+                return ToolExecutionResult.error(
+                    f"✗ LaTeX compilation failed with errors (PDF created but contains errors): {file_name}",
                     final_output
                 )
             else:
@@ -232,3 +243,62 @@ class LaTeXCompileTool(FileOperationTool):
         content = content.strip()
         
         return content 
+    
+    def _has_compilation_errors(self, output: str) -> bool:
+        """
+        Analyze LaTeX compilation output to detect actual errors.
+        Returns True if there are serious errors that should fail compilation.
+        """
+        if not output:
+            return False
+        
+        # Convert to lowercase for case-insensitive matching
+        output_lower = output.lower()
+        
+        # Critical error patterns that indicate real compilation failures
+        error_patterns = [
+            "! undefined control sequence",
+            "! missing",
+            "! extra",
+            "! improper",
+            "! illegal",
+            "! paragraph ended before",
+            "! file ended while scanning",
+            "! too many }",
+            "! missing } inserted",
+            "! missing $ inserted",
+            "! display math should end with $$",
+            "! you can't use",
+            "! command",
+            "! environment",
+            "! latex error:",
+            "! package",
+            "! class",
+            "fatal error",
+            "emergency stop",
+            "! ==> fatal error occurred",
+            "unicode character",
+            "not set up for use with latex",
+            "inputenc error",
+            "! file not found",
+            "! i can't find file",
+            "! package babel error",
+            "! math version",
+            "! font",
+            "encoding scheme",
+            "cannot be used with"
+        ]
+        
+        # Check for error patterns
+        for pattern in error_patterns:
+            if pattern in output_lower:
+                return True
+        
+        # Check for "! " at the beginning of lines (LaTeX error indicator)
+        lines = output.split('\n')
+        for line in lines:
+            line_stripped = line.strip()
+            if line_stripped.startswith('! ') and len(line_stripped) > 2:
+                return True
+        
+        return False 
