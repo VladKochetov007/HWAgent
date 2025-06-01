@@ -51,6 +51,202 @@ class LaTeXLinter:
         return warnings
 
 
+class LaTeXTextFormatter:
+    """Handles text formatting to prevent page overflow and improve readability."""
+    
+    @staticmethod
+    def format_text_content(content: str) -> str:
+        """Format LaTeX content to improve page layout and prevent overflow."""
+        if not content:
+            return content
+        
+        lines = content.split('\n')
+        formatted_lines = []
+        in_document = False
+        in_math_mode = False
+        in_verbatim = False
+        
+        for line in lines:
+            # Track document boundaries
+            if '\\begin{document}' in line:
+                in_document = True
+            elif '\\end{document}' in line:
+                in_document = False
+            
+            # Track verbatim environments (don't format these)
+            if '\\begin{verbatim}' in line or '\\begin{lstlisting}' in line:
+                in_verbatim = True
+            elif '\\end{verbatim}' in line or '\\end{lstlisting}' in line:
+                in_verbatim = False
+            
+            # Track math mode
+            if line.count('$$') % 2 == 1:
+                in_math_mode = not in_math_mode
+            
+            # Only format text content, not preamble or special environments
+            if in_document and not in_verbatim and not in_math_mode:
+                formatted_line = LaTeXTextFormatter._format_line(line)
+                formatted_lines.append(formatted_line)
+            else:
+                formatted_lines.append(line)
+        
+        return '\n'.join(formatted_lines)
+    
+    @staticmethod
+    def _format_line(line: str) -> str:
+        """Format a single line to improve readability and prevent overflow."""
+        # Skip empty lines and LaTeX commands
+        if not line.strip() or line.strip().startswith('\\'):
+            return line
+        
+        # Break very long lines (over 80 characters) at natural break points
+        if len(line) > 80:
+            return LaTeXTextFormatter._break_long_line(line)
+        
+        return line
+    
+    @staticmethod
+    def _break_long_line(line: str) -> str:
+        """Break long lines at natural break points."""
+        # Don't break lines that are already formatted or contain special LaTeX
+        if '\\' in line or line.strip().startswith('%'):
+            return line
+        
+        # Find natural break points (after punctuation, spaces)
+        words = line.split()
+        if len(words) <= 1:
+            return line
+        
+        # Rebuild line with breaks at appropriate points
+        current_line = ""
+        result_lines = []
+        
+        for word in words:
+            # If adding this word would make line too long, start new line
+            if len(current_line + " " + word) > 80 and current_line:
+                result_lines.append(current_line.rstrip())
+                current_line = word
+            else:
+                if current_line:
+                    current_line += " " + word
+                else:
+                    current_line = word
+        
+        # Add the last line
+        if current_line:
+            result_lines.append(current_line)
+        
+        return '\n'.join(result_lines)
+    
+    @staticmethod
+    def add_page_formatting_packages(content: str) -> str:
+        """Add packages for better page formatting and layout."""
+        if not content or '\\documentclass' not in content:
+            return content
+        
+        formatting_packages = [
+            '\\usepackage[margin=2.5cm]{geometry}',  # Better margins
+            '\\usepackage{setspace}',                # Line spacing control
+            '\\usepackage{parskip}',                 # Better paragraph spacing
+            '\\usepackage{microtype}',               # Better typography
+            '\\usepackage{fancyhdr}',                # Headers and footers
+        ]
+        
+        lines = content.split('\n')
+        documentclass_idx = -1
+        
+        # Find documentclass line
+        for i, line in enumerate(lines):
+            if '\\documentclass' in line:
+                documentclass_idx = i
+                break
+        
+        if documentclass_idx == -1:
+            return content
+        
+        # Check which packages are already included
+        existing_packages = set()
+        for line in lines:
+            if '\\usepackage' in line:
+                # Extract package name (handle options in brackets)
+                match = re.search(r'\\usepackage(?:\[[^\]]*\])?\{([^}]+)\}', line)
+                if match:
+                    existing_packages.add(match.group(1))
+                # Also check for packages with options like geometry
+                if 'geometry' in line:
+                    existing_packages.add('geometry')
+        
+        # Add missing formatting packages
+        insert_idx = documentclass_idx + 1
+        new_packages = []
+        
+        for package_line in formatting_packages:
+            # Extract package name to check if it exists
+            match = re.search(r'\\usepackage(?:\[[^\]]*\])?\{([^}]+)\}', package_line)
+            if match:
+                package_name = match.group(1)
+                if package_name not in existing_packages:
+                    new_packages.append(package_line)
+        
+        if new_packages:
+            # Insert new packages after documentclass
+            lines[insert_idx:insert_idx] = new_packages
+        
+        return '\n'.join(lines)
+    
+    @staticmethod
+    def add_document_formatting_commands(content: str) -> str:
+        """Add formatting commands after \\begin{document}."""
+        if '\\begin{document}' not in content:
+            return content
+        
+        formatting_commands = [
+            '\\setlength{\\parindent}{0pt}',      # No paragraph indentation
+            '\\setlength{\\parskip}{1em}',        # Space between paragraphs
+            '\\onehalfspacing',                   # 1.5 line spacing
+        ]
+        
+        lines = content.split('\n')
+        begin_doc_idx = -1
+        
+        # Find \\begin{document} line
+        for i, line in enumerate(lines):
+            if '\\begin{document}' in line:
+                begin_doc_idx = i
+                break
+        
+        if begin_doc_idx == -1:
+            return content
+        
+        # Check if formatting commands already exist
+        existing_commands = set()
+        for line in lines:
+            if '\\setlength{\\parindent}' in line:
+                existing_commands.add('parindent')
+            if '\\setlength{\\parskip}' in line:
+                existing_commands.add('parskip')
+            if '\\onehalfspacing' in line:
+                existing_commands.add('spacing')
+        
+        # Add missing commands after \\begin{document}
+        insert_idx = begin_doc_idx + 1
+        new_commands = []
+        
+        if 'parindent' not in existing_commands:
+            new_commands.append(formatting_commands[0])
+        if 'parskip' not in existing_commands:
+            new_commands.append(formatting_commands[1])
+        if 'spacing' not in existing_commands:
+            new_commands.append(formatting_commands[2])
+        
+        if new_commands:
+            # Add empty line before commands for readability
+            new_commands.insert(0, '')
+            lines[insert_idx:insert_idx] = new_commands
+        
+        return '\n'.join(lines)
+
+
 class LaTeXErrorParser:
     """Parses LaTeX compilation errors and suggests fixes."""
     
@@ -254,11 +450,16 @@ class LaTeXCompileTool(FileOperationTool):
         Features:
         - Automatic quote removal from LaTeX content
         - Enhanced mathematical package inclusion
+        - Automatic text formatting to prevent page overflow
+        - Better page layout with improved margins and spacing
+        - Line breaking for long text to improve readability
         - Multi-engine support (pdflatex, xelatex, lualatex)
         - Intelligent error parsing with fix suggestions
         - Safe compilation with timeout and batchmode
         
-        The tool automatically preprocesses LaTeX files before compilation to ensure clean content."""
+        The tool automatically preprocesses LaTeX files before compilation to ensure clean content,
+        proper formatting, and optimal page layout. Text is automatically formatted to prevent
+        overflow and improve readability while preserving LaTeX commands and math environments."""
     
     @property
     def parameters_schema(self) -> dict[str, Any]:
@@ -370,7 +571,7 @@ class LaTeXCompileTool(FileOperationTool):
             )
     
     def _preprocess_latex_file(self, filepath: str) -> ToolExecutionResult:
-        """Preprocess LaTeX file by removing quotes and ensuring mathematical packages"""
+        """Preprocess LaTeX file by removing quotes, ensuring packages, and applying formatting"""
         try:
             # Read original content
             with open(filepath, 'r', encoding='utf-8') as f:
@@ -389,15 +590,17 @@ class LaTeXCompileTool(FileOperationTool):
                     changes.append("quotes removed")
                 if self._had_packages_enhanced(original_content, processed_content):
                     changes.append("packages enhanced")
+                if self._had_formatting_applied(original_content, processed_content):
+                    changes.append("text formatting applied")
                 
                 return ToolExecutionResult.success(
                     f"LaTeX file preprocessed: {' and '.join(changes)}",
-                    f"Applied preprocessing to {os.path.basename(filepath)}"
+                    f"Applied preprocessing to {os.path.basename(filepath)}: {', '.join(changes)}"
                 )
             else:
                 return ToolExecutionResult.success(
                     "No preprocessing needed",
-                    f"File {os.path.basename(filepath)} was already clean"
+                    f"File {os.path.basename(filepath)} was already clean and well-formatted"
                 )
                 
         except Exception as e:
@@ -407,7 +610,7 @@ class LaTeXCompileTool(FileOperationTool):
             )
     
     def _preprocess_content(self, content: str) -> str:
-        """Preprocess content by removing quotes and ensuring mathematical packages"""
+        """Preprocess content by removing quotes, ensuring packages, and formatting text"""
         if not content:
             return content
         
@@ -417,7 +620,16 @@ class LaTeXCompileTool(FileOperationTool):
         # Step 2: Ensure mathematical packages are included
         enhanced_content = self._ensure_mathematical_packages(cleaned_content)
         
-        return enhanced_content
+        # Step 3: Add page formatting packages for better layout
+        formatted_packages = LaTeXTextFormatter.add_page_formatting_packages(enhanced_content)
+        
+        # Step 4: Add document formatting commands
+        formatted_commands = LaTeXTextFormatter.add_document_formatting_commands(formatted_packages)
+        
+        # Step 5: Format text content to prevent overflow
+        final_content = LaTeXTextFormatter.format_text_content(formatted_commands)
+        
+        return final_content
     
     def _remove_unwanted_quotes(self, content: str) -> str:
         """Remove unwanted quotes from beginning and end of content"""
@@ -500,7 +712,25 @@ class LaTeXCompileTool(FileOperationTool):
         return False
     
     def _had_packages_enhanced(self, original: str, processed: str) -> bool:
-        """Check if mathematical packages were added"""
+        """Check if mathematical or formatting packages were added"""
         original_packages = original.count('\\usepackage')
         processed_packages = processed.count('\\usepackage')
-        return processed_packages > original_packages 
+        return processed_packages > original_packages
+    
+    def _had_formatting_applied(self, original: str, processed: str) -> bool:
+        """Check if text formatting was applied"""
+        # Check for formatting commands
+        formatting_indicators = [
+            '\\setlength{\\parindent}',
+            '\\setlength{\\parskip}',
+            '\\onehalfspacing',
+            'margin=2.5cm',
+            'setspace',
+            'parskip',
+            'microtype'
+        ]
+        
+        original_formatting = sum(1 for indicator in formatting_indicators if indicator in original)
+        processed_formatting = sum(1 for indicator in formatting_indicators if indicator in processed)
+        
+        return processed_formatting > original_formatting 
