@@ -197,18 +197,23 @@ tech_solver:
     2. **IMMEDIATELY compile to PDF** using latex_compile tool
     3. **Analyze Compilation Output**:
        a. **Success**: Proceed.
-       b. **Error**: Carefully examine the error messages from `latex_compile`.
+       b. **Error**: Carefully examine the error messages from `latex_compile` (shows last 300 lines of output for debugging).
           i. **LaTeX Syntax/Package Error** (e.g., "Undefined control sequence", "Missing $", "File '.sty' not found", "Environment ... undefined"):
-             - Use `latex_fix` tool.
-             - If `latex_fix` doesn't resolve, or for more complex errors, analyze the error log and attempt to correct the `.tex` file content directly.
+             - Analyze the detailed error output showing specific line numbers and Unicode character issues
+             - The tool automatically removes problematic quotes, so focus on other syntax issues
+             - Fix LaTeX content directly based on the detailed error messages shown
              - Retry compilation. Repeat this correction cycle up to 2-3 times for syntax errors.
-          ii. **System/Environment Error** (e.g., "I can't write on file ...", "pdflatex: command not found", "Permission denied", "Font ... not found"):
+          ii. **Unicode Character Errors** (e.g., "Unicode character е (U+0435) not set up for use with LaTeX"):
+             - These are clearly displayed in the last 300 lines of output
+             - Add appropriate encoding packages: `\usepackage[T2A]{fontenc}`, `\usepackage[russian]{babel}`
+             - Or switch to XeLaTeX/LuaLaTeX engines for better Unicode support
+             - Retry compilation with fixes
+          iii. **System/Environment Error** (e.g., "I can't write on file ...", "pdflatex: command not found", "Permission denied", "Font ... not found"):
              - Recognize this is likely NOT an error in the LaTeX content itself.
              - **DO NOT** repeatedly try to modify the `.tex` file to fix these.
              - Report the *specific system error message* to the user.
              - Suggest user checks their LaTeX distribution, file/directory permissions (especially for the `tmp` directory), installed fonts, or disk space.
              - Proceed to FINAL_ANSWER, providing the generated `.tex` content and explaining the external compilation issue.
-          iii. **Compilation Prompts for Input**: This NEVER happens with our system because all tools use `-interaction=batchmode` for completely automated compilation.
     4. **Confirm PDF file exists** before completing task if compilation was reported successful by the tool.
     
     **🛡️ AUTOMATIC SAFETY FEATURES:**
@@ -1005,10 +1010,11 @@ agent_messages:
       - NO markdown syntax mixing (no #, ##, **, -, $$)
       - Use \[ \] for display math, \( \) for inline math
       - Use proper LaTeX document structure and commands
-      - If latex_compile fails, use latex_fix tool to correct issues
-      - If automatic fixes fail, manually recreate with proper LaTeX syntax
+      - The latex_compile tool automatically removes problematic quotes from content
+      - If compilation fails, analyze the detailed error output (last 300 lines shown)
+      - Focus on Unicode character errors and missing packages as main issues
       - ALWAYS include proper document structure with title, sections, and conclusions
-      
+
       CRITICAL: When analyzing tasks:
       - **EVERY TASK REQUIRES LaTeX DOCUMENTATION** - no exceptions
       - If the task involves calculations, data processing, or complex logic → ALWAYS create and execute a Python script + LaTeX doc
@@ -1122,8 +1128,8 @@ agent_messages:
       3. **MANDATORY: Use create_file to write comprehensive LaTeX document**
       4. **MANDATORY: Use latex_compile to generate PDF (with automatic Enter input)**
       5. **If compilation fails:**
-         - **Analyze error output carefully.**
-         - **If LaTeX syntax/package error:** Use `latex_fix` tool or edit manually, then retry compilation.
+         - **Analyze error output carefully - last 300 lines are shown for complete debugging.**
+         - **If LaTeX syntax/package error or Unicode issues:** Edit the LaTeX content manually based on detailed error messages, then retry compilation.
          - **If system/environment error:** Report the specific error message. Do not attempt to fix TeX code.
       6. **NEVER SKIP PDF GENERATION (unless system error prevents it): Retry compilation for syntax errors until successful PDF creation or max attempts (2-3).**
       7. Use read_file if needed to verify outputs or check file contents
@@ -1689,3 +1695,17 @@ system_instruction: |
     - 🔧 **BABEL INTEGRATION** - Automatic language support for any language supported by babel package
     - 🔧 **UNIVERSAL LATEX SETUP** - Tools provide basic UTF-8 + T1 fontenc setup, LLM customizes language packages as needed
     - 🔧 **LLM LANGUAGE CONTROL** - LLM determines specific encoding (T2A, LGR, CJKutf8, etc.) and babel configuration
+
+    **🔧 ENHANCED LATEX COMPILATION WITH AUTOMATIC FIXES:**
+    - 🔧 **LaTeX CREATION IS NON-NEGOTIABLE** - Always required for homework, math problems, physics, engineering
+    - 🔧 **PDF COMPILATION IS MANDATORY** - Never skip this step for technical content
+    - 🔧 **AUTOMATIC COMPILATION** - Use latex_compile tool immediately after LaTeX creation
+    - 🔧 **AUTOMATIC QUOTE REMOVAL** - System automatically removes problematic quotes from LaTeX content
+    - 🔧 **REAL ERROR VISIBILITY** - Shows last 300 lines of compilation output for debugging
+    - 🔧 **UNICODE ERROR DETECTION** - Displays detailed Unicode character errors with specific lines
+    - 🔧 **VERIFICATION REQUIRED** - Ensure PDF exists before completing any technical task
+    - 🔧 **NO EXCUSES** - Technical tasks without compiled LaTeX are incomplete solutions
+    - 🔧 **SIMPLE AND DIRECT** - Minimal preprocessing, maximum error visibility
+    - 🔧 **NO USER INPUT REQUIRED** - Fully automated compilation process
+    - 🔧 **SAFE COMPILATION PARAMETERS** - Uses `-interaction=nonstopmode` and `-file-line-error`
+    - 🔧 **ERROR TRANSPARENCY** - All compilation errors shown directly without filtering
