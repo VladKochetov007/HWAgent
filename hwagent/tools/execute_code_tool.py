@@ -7,6 +7,7 @@ import os
 import subprocess
 from pathlib import Path
 from typing import Any
+import sys
 
 from hwagent.core import (
     FileOperationTool, ToolExecutionResult, Constants, 
@@ -22,157 +23,178 @@ class CodeExecutor:
         self.timeout = timeout
     
     def execute_python(self, filepath: str) -> ToolExecutionResult:
-        """Execute Python file with security checks."""
-        try:
-            # Read file content for security analysis
+        """Execute Python code file."""
+        # Handle paths that already contain tmp_directory prefix
+        if filepath.startswith(self.tmp_directory + "/"):
+            # Path already includes tmp_directory, use as is
+            full_path = filepath
+            relative_path = filepath[len(self.tmp_directory) + 1:]
+        else:
+            # Normal relative path, add tmp_directory
             full_path = os.path.join(self.tmp_directory, filepath)
-            with open(full_path, 'r', encoding='utf-8') as f:
+            relative_path = filepath
+        
+        try:
+            # Read and validate Python code
+            with open(full_path, "r", encoding="utf-8") as f:
                 code_content = f.read()
             
-            # Security check for dangerous patterns
+            # Security check
             security_result = SecurityValidator.validate_python_code_safety(code_content)
             if security_result.is_error():
                 return ToolExecutionResult.error(
-                    f"Security check failed for {filepath}",
-                    security_result.details
+                    f"executing Python file: {relative_path}",
+                    f"Security validation failed: {security_result.details}"
                 )
             
-            file_name = os.path.basename(filepath)
-            
-            # Additional security: restrict Python execution
+            # Execute Python code
+            python_executable = sys.executable
             restricted_args = [
-                Constants.PYTHON_EXECUTABLE, 
-                "-I",  # Isolate from user site-packages
-                "-s",  # Don't add user site directory
-                file_name
+                python_executable, "-u", "-X", "dev",
+                "-c", f"exec(open('{full_path}').read())"
             ]
+            print(f"Executing command: {' '.join(restricted_args)}")
             
             result = subprocess.run(
                 restricted_args,
                 cwd=self.tmp_directory,
                 capture_output=True,
                 text=True,
-                timeout=self.timeout,
-                env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"}  # Prevent .pyc files
+                timeout=self.timeout
             )
             
-            output_lines = [f"=== Python Execution: {file_name} ==="]
-            output_lines.append(f"Exit Code: {result.returncode}")
-            
+            output_lines = []
             if result.stdout:
-                output_lines.extend(["", "--- STDOUT ---", result.stdout.rstrip()])
-            
+                output_lines.append(f"STDOUT:\n{result.stdout}")
             if result.stderr:
-                output_lines.extend(["", "--- STDERR ---", result.stderr.rstrip()])
+                output_lines.append(f"STDERR:\n{result.stderr}")
+            
+            output = "\n".join(output_lines) if output_lines else "No output"
             
             if result.returncode == 0:
-                output_lines.append("\n✓ Execution completed successfully")
-                status = ToolExecutionResult.success
+                return ToolExecutionResult.success(
+                    f"executed Python file: {relative_path}",
+                    output
+                )
             else:
-                output_lines.append(f"\n✗ Execution failed with exit code {result.returncode}")
-                status = ToolExecutionResult.error
-            
-            return status(
-                f"executed Python file: {file_name}",
-                "\n".join(output_lines)
+                return ToolExecutionResult.error(
+                    f"executing Python file: {relative_path}",
+                    f"Exit code {result.returncode}\n{output}"
+                )
+        
+        except FileNotFoundError:
+            return ToolExecutionResult.error(
+                f"executing Python file: {relative_path}",
+                f"File not found: {full_path}"
             )
-            
         except subprocess.TimeoutExpired:
             return ToolExecutionResult.error(
-                f"executing Python file: {filepath}",
-                f"Execution timed out after {self.timeout} seconds"
+                f"executing Python file: {relative_path}",
+                f"Execution timeout after {self.timeout} seconds"
             )
         except Exception as e:
             return ToolExecutionResult.error(
-                f"executing Python file: {filepath}",
+                f"executing Python file: {relative_path}",
                 str(e)
             )
     
     def execute_compiled_language(self, filepath: str, language: str) -> ToolExecutionResult:
-        """Execute C/C++ file (compile and run)."""
+        """Execute compiled language (C/C++) file."""
+        # Handle paths that already contain tmp_directory prefix
+        if filepath.startswith(self.tmp_directory + "/"):
+            # Path already includes tmp_directory, use as is
+            full_path = filepath
+            relative_path = filepath[len(self.tmp_directory) + 1:]
+        else:
+            # Normal relative path, add tmp_directory
+            full_path = os.path.join(self.tmp_directory, filepath)
+            relative_path = filepath
+        
         try:
-            file_path = Path(filepath)
-            file_stem = file_path.stem
-            executable_name = f"{file_stem}.out"
+            # Determine compiler and output executable name
+            if language == Constants.LANGUAGE_CPP:
+                compiler = "g++"
+                compiler_flags = ["-std=c++17", "-Wall", "-Wextra"]
+            else:  # C
+                compiler = "gcc"
+                compiler_flags = ["-std=c11", "-Wall", "-Wextra"]
+            
+            # Create executable name (remove extension, add .exe if needed)
+            base_name = Path(relative_path).stem
+            executable_name = f"{base_name}.exe" if os.name == 'nt' else base_name
             executable_path = os.path.join(self.tmp_directory, executable_name)
             
-            # Determine compiler
-            compiler = Constants.COMPILER_GPP if language == Constants.LANGUAGE_CPP else Constants.COMPILER_GCC
+            # Compile the code
+            compile_cmd = [compiler] + compiler_flags + ["-o", executable_path, full_path]
             
+            compile_result = subprocess.run(
+                compile_cmd,
+                cwd=self.tmp_directory,
+                capture_output=True,
+                text=True,
+                timeout=self.timeout
+            )
+            
+            if compile_result.returncode != 0:
+                return ToolExecutionResult.error(
+                    f"compiling {language} file: {relative_path}",
+                    f"Compilation failed:\n{compile_result.stderr}"
+                )
+            
+            # Execute the compiled program
+            if os.name == 'nt':
+                execute_cmd = [executable_path]
+            else:
+                execute_cmd = [f"./{executable_name}"]
+            
+            execute_result = subprocess.run(
+                execute_cmd,
+                cwd=self.tmp_directory,
+                capture_output=True,
+                text=True,
+                timeout=self.timeout
+            )
+            
+            output_lines = []
+            if compile_result.stdout:
+                output_lines.append(f"COMPILE OUTPUT:\n{compile_result.stdout}")
+            if execute_result.stdout:
+                output_lines.append(f"EXECUTION OUTPUT:\n{execute_result.stdout}")
+            if execute_result.stderr:
+                output_lines.append(f"EXECUTION STDERR:\n{execute_result.stderr}")
+            
+            output = "\n".join(output_lines) if output_lines else "No output"
+            
+            # Clean up executable
             try:
-                # Compile
-                compile_cmd = [compiler, os.path.basename(filepath), "-o", executable_name]
-                
-                compile_result = subprocess.run(
-                    compile_cmd,
-                    cwd=self.tmp_directory,
-                    capture_output=True,
-                    text=True,
-                    timeout=self.timeout
+                os.remove(executable_path)
+            except OSError:
+                pass  # Ignore cleanup errors
+            
+            if execute_result.returncode == 0:
+                return ToolExecutionResult.success(
+                    f"executed {language} file: {relative_path}",
+                    output
                 )
-                
-                output_lines = [f"=== {language.upper()} Compilation: {os.path.basename(filepath)} ==="]
-                output_lines.append(f"Compile Command: {' '.join(compile_cmd)}")
-                output_lines.append(f"Exit Code: {compile_result.returncode}")
-                
-                if compile_result.stderr:
-                    output_lines.extend(["", "--- COMPILE STDERR ---", compile_result.stderr.rstrip()])
-                
-                if compile_result.returncode != 0:
-                    output_lines.append("\n✗ Compilation failed")
-                    return ToolExecutionResult.error(
-                        f"compiling {language} file: {filepath}",
-                        "\n".join(output_lines),
-                    )
-                
-                output_lines.append("\n✓ Compilation successful")
-                
-                # Run executable
-                run_result = subprocess.run(
-                    [f"./{executable_name}"],
-                    cwd=self.tmp_directory,
-                    capture_output=True,
-                    text=True,
-                    timeout=self.timeout
+            else:
+                return ToolExecutionResult.error(
+                    f"executing {language} file: {relative_path}",
+                    f"Exit code {execute_result.returncode}\n{output}"
                 )
-                
-                output_lines.extend(["", "=== Execution ==="])
-                output_lines.append(f"Exit Code: {run_result.returncode}")
-                
-                if run_result.stdout:
-                    output_lines.extend(["", "--- STDOUT ---", run_result.stdout.rstrip()])
-                
-                if run_result.stderr:
-                    output_lines.extend(["", "--- STDERR ---", run_result.stderr.rstrip()])
-                
-                if run_result.returncode == 0:
-                    output_lines.append("\n✓ Execution completed successfully")
-                    status = ToolExecutionResult.success
-                else:
-                    output_lines.append(f"\n✗ Execution failed with exit code {run_result.returncode}")
-                    status = ToolExecutionResult.error
-                
-                return status(
-                    f"executed {language} file: {os.path.basename(filepath)}",
-                    "\n".join(output_lines)
-                )
-                
-            finally:
-                # Clean up executable
-                try:
-                    if os.path.exists(executable_path):
-                        os.unlink(executable_path)
-                except OSError:
-                    pass
-                    
+        
+        except FileNotFoundError as e:
+            return ToolExecutionResult.error(
+                f"executing {language} file: {relative_path}",
+                f"File not found or compiler missing: {str(e)}"
+            )
         except subprocess.TimeoutExpired:
             return ToolExecutionResult.error(
-                f"compiling/executing {language} file: {filepath}",
-                f"Operation timed out after {self.timeout} seconds"
+                f"executing {language} file: {relative_path}",
+                f"Execution timeout after {self.timeout} seconds"
             )
         except Exception as e:
             return ToolExecutionResult.error(
-                f"compiling/executing {language} file: {filepath}",
+                f"executing {language} file: {relative_path}",
                 str(e)
             )
 
@@ -254,8 +276,6 @@ class ExecuteCodeTool(FileOperationTool):
         if exists_result.is_error():
             return exists_result
         
-        full_path = self._get_full_path(filepath)
-        
         # Auto-detect language if needed
         if language == Constants.LANGUAGE_AUTO:
             detected_language = self.language_detector.detect_language(filepath)
@@ -268,11 +288,11 @@ class ExecuteCodeTool(FileOperationTool):
                 )
             language = detected_language
         
-        # Execute based on language
+        # Execute based on language - pass relative filepath, not full_path
         if language == Constants.LANGUAGE_PYTHON:
-            return self.code_executor.execute_python(full_path)
+            return self.code_executor.execute_python(filepath)
         elif language in (Constants.LANGUAGE_CPP, Constants.LANGUAGE_C):
-            return self.code_executor.execute_compiled_language(full_path, language)
+            return self.code_executor.execute_compiled_language(filepath, language)
         else:
             return ToolExecutionResult.error(
                 f"executing file: {filepath}",

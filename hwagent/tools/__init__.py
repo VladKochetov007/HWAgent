@@ -9,7 +9,6 @@ from hwagent.core.base_tool import BaseTool, FileOperationTool
 # File operation tools
 from .create_file_tool import CreateFileTool
 from .read_file_tool import ReadFileTool
-from .list_files_tool import ListFilesTool
 
 # Execution tools
 from .execute_code_tool import ExecuteCodeTool
@@ -25,8 +24,6 @@ __all__ = [
     "FileOperationTool",
     "CreateFileTool", 
     "ReadFileTool",
-    "ListFilesTool",
-    "ExecuteCodeTool",
     "WebSearchTool",
     "EnhancedWebSearchTool",
     "MemoryTool"
