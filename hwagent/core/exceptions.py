@@ -1,6 +1,5 @@
 """
 Custom exceptions for HWAgent.
-Following SRP - each exception has specific responsibility.
 """
 
 
@@ -45,8 +44,3 @@ class ToolExecutionError(HWAgentException):
 class ParsingError(HWAgentException):
     """Raised when response parsing fails."""
     pass
-
-
-class StreamingError(HWAgentException):
-    """Raised when streaming operations fail."""
-    pass 
