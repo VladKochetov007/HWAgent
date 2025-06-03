@@ -1,0 +1,81 @@
+
+\documentclass{article}
+\usepackage{amsmath}
+\usepackage{listings}
+\usepackage{xcolor}
+
+\definecolor{codegreen}{rgb}{0,0.6,0}
+\definecolor{codegray}{rgb}{0.5,0.5,0.5}
+\definecolor{codesilver}{rgb}{0.9,0.9,0.9}
+\definecolor{backcolour}{rgb}{0.98,0.98,0.98}
+
+\lstdefinestyle{mystyle}{
+    backgroundcolor=\color{backcolour},
+    commentstyle=\color{codegreen},
+    keywordstyle=\color{magenta},
+    numberstyle=\tiny\color{codegray},
+    stringstyle=\color{purple},
+    basicstyle=\ttfamily\footnotesize,
+    breakatwhitespace=false,
+    breaklines=true,
+    captionpos=b,
+    keepspaces=true,
+    numbers=left,
+    numbersep=5pt,
+    showspaces=false,
+    showstringspaces=false,
+    showtabs=false,
+    tabsize=2
+}
+
+\lstset{style=mystyle}
+
+\title{Factorial Function Implementation and Verification}
+\author{}
+\date{}
+
+\begin{document}
+
+\maketitle
+
+\section*{Problem Description}
+The task is to write a simple Python function to calculate the factorial of a non-negative integer.
+
+\section*{Solution Approach}
+A Python function named `factorial(n)` will be implemented. This function will:
+\begin{itemize}
+    \item Check if the input `n` is a non-negative integer. If not, it will raise a `ValueError`.
+    \item Handle the base case where $n=0$, returning 1.
+    \item For $n > 0$, calculate the factorial iteratively by multiplying numbers from 1 to $n$.
+\end{itemize}
+
+\section*{Python Code Implementation}
+The following Python code implements the `factorial` function:
+
+\lstinputlisting[language=Python]{factorial_function.py}
+
+\section*{Verification}
+To verify the correctness of the function, several test cases were executed, including:
+\begin{itemize}
+    \item Factorial of 0
+    \item Factorial of 1
+    \item Factorial of 5
+    \item Factorial of 10
+    \item Invalid inputs (negative number and non-integer) to check error handling.
+\end{itemize}
+
+The Python script was executed, and the output is shown below:
+
+\begin{verbatim}
+Factorial of 0: 1
+Factorial of 1: 1
+Factorial of 5: 120
+Factorial of 10: 3628800
+Error for -3: Input must be a non-negative integer.
+Error for 3.5: Input must be a non-negative integer.
+\end{verbatim}
+
+\section*{Conclusion}
+The implemented `factorial` function correctly calculates the factorial for non-negative integers and handles invalid inputs as specified. The verification steps confirm the function's accuracy and robustness.
+
+\end{document}

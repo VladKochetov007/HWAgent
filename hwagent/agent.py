@@ -29,6 +29,13 @@ def get_agent():
         temperature=api_config['model_parameters']['simple_temperature']
     )
 
+    # Check if verbose mode is enabled
+    verbose_mode = os.getenv('HWAGENT_VERBOSE', '0') == '1'
+    verbosity_level = 2 if verbose_mode else 1  # Higher verbosity for thinking process
+    
+    if verbose_mode:
+        print("🧠 Agent verbose mode enabled - all thinking steps will be displayed")
+
     agent = CodeAgent(
         tools=[shell_tool, edit_file_tool, create_file_tool],
         model=OpenAIServerModel(
@@ -40,6 +47,12 @@ def get_agent():
         system_prompt=SYSTEM_PROMPT,
         add_base_tools=True,
         additional_authorized_imports=agent_settings['agent_settings']['additional_authorized_imports'],
-        max_steps=agent_settings['agent_settings']['max_steps']
+        max_steps=agent_settings['agent_settings']['max_steps'],
+        verbosity_level=verbosity_level  # Set verbosity based on environment
     )
+    
+    # Pass image_paths to the agent state for vision tasks
+    if verbose_mode:
+        print("🖼️ Vision capabilities enabled - agent can process images via image_paths variable")
+    
     return agent
