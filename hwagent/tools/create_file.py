@@ -25,14 +25,16 @@ async def create_file_tool(
             - encoding: File encoding (default: utf-8)
     """
     try:
+        print(f"DEBUG create_file_tool received arguments: {arguments}")
+        
         file_path = arguments.get("file_path")
-        content = arguments.get("content", "")
+        content = arguments.get("content", "") or arguments.get("new_content", "")  # Support both parameters
         encoding = arguments.get("encoding", "utf-8")
         
         if not file_path:
             return [types.TextContent(
                 type="text",
-                text="Error: file_path is required"
+                text=f"Error: file_path parameter is required. Received arguments: {arguments}"
             )]
         
         # Convert to Path object and resolve

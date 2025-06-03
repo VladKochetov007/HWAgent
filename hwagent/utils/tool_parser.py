@@ -120,35 +120,80 @@ def extract_tool_from_ast_call(node: ast.Call) -> types.Tool | None:
 
 def get_all_tool_descriptions() -> str:
     """
-    Get formatted descriptions of all available tools by parsing their source code.
+    Get formatted descriptions of all available tools.
     
     Returns:
         Formatted string with all tool descriptions
     """
-    tool_modules = [
-        'hwagent.tools.create_file',
-        'hwagent.tools.edit_file', 
-        'hwagent.tools.execute_command',
-        'hwagent.tools.search_web',
-        'hwagent.tools.final_answer'
+    # Manual tool descriptions for reliability
+    tools_info = [
+        {
+            "name": "create_file",
+            "description": "Create a new file with specified content and encoding",
+            "parameters": {
+                "file_path": "Path where to create the file (relative to working directory) - REQUIRED",
+                "content": "Content to write to the file - OPTIONAL",
+                "encoding": "File encoding (default: utf-8) - OPTIONAL"
+            },
+            "example": '{"file_path": "example.txt", "content": "Hello World"}'
+        },
+        {
+            "name": "edit_file", 
+            "description": "Edit an existing file using LLM assistance with specific instructions",
+            "parameters": {
+                "file_path": "Path to the file to edit (must exist) - REQUIRED",
+                "instruction": "Clear instruction for how to edit the file - REQUIRED",
+                "encoding": "File encoding (default: utf-8) - OPTIONAL"
+            },
+            "example": '{"file_path": "example.txt", "instruction": "Add a new line with current date"}'
+        },
+        {
+            "name": "execute_command",
+            "description": "Execute a shell command and return the output. ALWAYS use non-interactive mode",
+            "parameters": {
+                "command": "Shell command to execute (must be non-interactive) - REQUIRED",
+                "working_dir": "Working directory (default: current) - OPTIONAL",
+                "timeout": "Command timeout in seconds - OPTIONAL"
+            },
+            "example": '{"command": "python script.py"}'
+        },
+        {
+            "name": "search_web",
+            "description": "Search the web for information",
+            "parameters": {
+                "query": "Search query string - REQUIRED",
+                "num_results": "Number of results to return (default: 5) - OPTIONAL"
+            },
+            "example": '{"query": "python programming tutorial", "num_results": 5}'
+        },
+        {
+            "name": "final_answer",
+            "description": "Provide the final answer when ALL tasks are completed",
+            "parameters": {
+                "summary": "Brief summary of what was accomplished - REQUIRED",
+                "explanation": "Detailed explanation of the solution - REQUIRED",
+                "files_created": "List of files created during solving - OPTIONAL",
+                "key_results": "List of key results or outputs - OPTIONAL",
+                "working_directory": "Working directory path - OPTIONAL"
+            },
+            "example": '{"summary": "Solved math problem", "explanation": "Calculated integral using Python..."}'
+        }
     ]
     
     tool_descriptions = []
     
-    for module_name in tool_modules:
-        try:
-            # Import the module
-            module = importlib.import_module(module_name)
-            
-            # Parse tools from the source file
-            tools = parse_tools_from_source(module.__file__)
-            
-            for tool in tools:
-                desc = format_tool_description(tool)
-                tool_descriptions.append(desc)
-                
-        except Exception as e:
-            print(f"Error processing {module_name}: {e}")
+    for tool in tools_info:
+        lines = []
+        lines.append(f"🔧 {tool['name']}:")
+        lines.append(f"Description: {tool['description']}")
+        lines.append(f"Action: {tool['name']}")
+        lines.append(f"Action Input: {tool['example']}")
+        lines.append("Parameters:")
+        
+        for param_name, param_desc in tool['parameters'].items():
+            lines.append(f"  - {param_name}: {param_desc}")
+        
+        tool_descriptions.append("\n".join(lines))
     
     return "\n\n".join(tool_descriptions)
 

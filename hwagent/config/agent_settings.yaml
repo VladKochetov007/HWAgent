@@ -9,7 +9,7 @@ react_agent:
 
   # Working directory settings
   tmp_dir_prefix: "hwagent_"
-  cleanup_tmp_dirs: true
+  cleanup_tmp_dirs: false
 
   # Safety settings
   max_file_size: 10485760  # 10MB

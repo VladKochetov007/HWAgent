@@ -97,6 +97,8 @@ class ReActAgent:
     async def execute_tool(self, tool_name: str, arguments: dict[str, Any]) -> str:
         """Execute MCP tool and return result."""
         try:
+            print(f"DEBUG: Executing tool '{tool_name}' with arguments: {arguments}")
+            
             # Track file creation for final answer
             if tool_name == "create_file" and "file_path" in arguments:
                 file_path = arguments["file_path"]
@@ -118,6 +120,7 @@ class ReActAgent:
                     break
             
             if not handler:
+                print(f"DEBUG: No MCP handler found for '{tool_name}', using direct tool call")
                 # Fallback: try to call tools directly
                 if tool_name == "create_file":
                     from ..tools.create_file import create_file_tool
@@ -137,7 +140,10 @@ class ReActAgent:
                 else:
                     return f"Error: Unknown tool '{tool_name}'"
             else:
+                print(f"DEBUG: Using MCP handler for '{tool_name}'")
                 result = await handler(tool_name, arguments)
+            
+            print(f"DEBUG: Tool '{tool_name}' returned result type: {type(result)}")
             
             # Extract text from result
             if isinstance(result, list) and result:
@@ -151,82 +157,96 @@ class ReActAgent:
             return str(result)
             
         except Exception as e:
-            return f"Error executing tool '{tool_name}': {str(e)}"
+            error_msg = f"Error executing tool '{tool_name}': {str(e)}"
+            print(f"DEBUG: {error_msg}")
+            return error_msg
     
     def parse_action(self, response: str) -> tuple[Optional[str], Optional[dict]]:
         """Parse action and action_input from LLM response."""
         try:
-            # First try line-by-line parsing for properly formatted responses
-            lines = response.split('\n')
-            action = None
-            action_input = None
+            # Look for Action: followed by tool name
+            action_match = re.search(r'Action:\s*([^\s\n]+)', response, re.IGNORECASE)
+            if not action_match:
+                return None, None
             
-            for i, line in enumerate(lines):
-                line = line.strip()
-                if line.startswith('Action:'):
-                    action = line.replace('Action:', '').strip()
-                elif line.startswith('Action Input:'):
-                    # Try to parse JSON from the rest of the line
-                    input_text = line.replace('Action Input:', '').strip()
-                    try:
-                        action_input = json.loads(input_text)
-                    except json.JSONDecodeError:
-                        # If not valid JSON, treat as string
-                        action_input = {"input": input_text}
+            action = action_match.group(1).strip()
             
-            # If line-by-line parsing didn't work, try inline parsing
-            if not action or not action_input:
-                # Look for patterns like "Action: tool_nameAction Input: {...}"
-                # Use regex to find Action: followed by Action Input:
-                action_pattern = r'Action:\s*([^\s]+)(?:.*?)Action Input:\s*(\{.*?\})'
-                match = re.search(action_pattern, response, re.DOTALL)
+            # Find Action Input: and extract JSON manually
+            action_input_pos = response.lower().find('action input:')
+            if action_input_pos == -1:
+                print(f"DEBUG: No Action Input found in response")
+                return action, {}
+            
+            # Start from after "action input:"
+            search_start = action_input_pos + len('action input:')
+            
+            # Find the first opening brace
+            brace_start = response.find('{', search_start)
+            if brace_start == -1:
+                print(f"DEBUG: No opening brace found after Action Input")
+                return action, {}
+            
+            # Find the matching closing brace
+            brace_count = 0
+            brace_end = brace_start
+            in_string = False
+            escape_next = False
+            
+            for i in range(brace_start, len(response)):
+                char = response[i]
                 
-                if match:
-                    action = match.group(1).strip()
-                    input_text = match.group(2).strip()
-                    try:
-                        action_input = json.loads(input_text)
-                    except json.JSONDecodeError:
-                        # Try to extract JSON more carefully
-                        # Look for the first { and find its matching }
-                        start_idx = input_text.find('{')
-                        if start_idx != -1:
-                            brace_count = 0
-                            end_idx = start_idx
-                            for i, char in enumerate(input_text[start_idx:], start_idx):
-                                if char == '{':
-                                    brace_count += 1
-                                elif char == '}':
-                                    brace_count -= 1
-                                    if brace_count == 0:
-                                        end_idx = i
-                                        break
-                            
-                            json_str = input_text[start_idx:end_idx+1]
-                            try:
-                                action_input = json.loads(json_str)
-                            except json.JSONDecodeError:
-                                action_input = {"input": input_text}
-                        else:
-                            action_input = {"input": input_text}
-                
-                # If still no match, try a more flexible pattern
-                if not action or not action_input:
-                    # Pattern for inline actions without proper formatting
-                    simple_pattern = r'Action:\s*([a-zA-Z_]+).*?Input:\s*(\{[^}]*\})'
-                    simple_match = re.search(simple_pattern, response, re.DOTALL)
+                if escape_next:
+                    escape_next = False
+                    continue
                     
-                    if simple_match:
-                        action = simple_match.group(1).strip()
-                        input_text = simple_match.group(2).strip()
-                        try:
-                            action_input = json.loads(input_text)
-                        except json.JSONDecodeError:
-                            action_input = {"input": input_text}
+                if char == '\\':
+                    escape_next = True
+                    continue
+                    
+                if char == '"' and not escape_next:
+                    in_string = not in_string
+                    continue
+                
+                if not in_string:
+                    if char == '{':
+                        brace_count += 1
+                    elif char == '}':
+                        brace_count -= 1
+                        if brace_count == 0:
+                            brace_end = i
+                            break
             
-            return action, action_input
+            if brace_count != 0:
+                print(f"DEBUG: Unmatched braces in JSON")
+                return action, {}
+            
+            input_text = response[brace_start:brace_end + 1]
+            print(f"DEBUG: Extracted JSON string: {input_text}")
+            
+            try:
+                action_input = json.loads(input_text)
+                print(f"DEBUG: Successfully parsed JSON: {action_input}")
+                return action, action_input
+            except json.JSONDecodeError as e:
+                print(f"DEBUG: JSON decode error: {e}")
+                print(f"DEBUG: Problematic JSON: {input_text}")
+                
+                # Try to fix common JSON issues
+                fixed_input = input_text
+                
+                # Fix escaped backslashes
+                fixed_input = fixed_input.replace('\\\\', '\\')
+                
+                try:
+                    action_input = json.loads(fixed_input)
+                    print(f"DEBUG: Fixed and parsed JSON: {action_input}")
+                    return action, action_input
+                except json.JSONDecodeError:
+                    print(f"DEBUG: Could not fix JSON, returning empty dict")
+                    return action, {}
             
         except Exception as e:
+            print(f"DEBUG: Exception in parse_action: {e}")
             return None, None
     
     def should_continue(self, response: str) -> bool:

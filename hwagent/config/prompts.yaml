@@ -16,16 +16,43 @@ thinking:
     - NEVER use final_answer until you have ACTUALLY completed all tasks
     - MUST use exact parameter names as specified in tool schemas
     - ALWAYS provide valid JSON in Action Input
+    - When including content with backslashes (like LaTeX), use single backslashes in JSON strings
     - Use relative paths for files (they will be created in your session directory)
     - Test your code after creating it to ensure it works
     - Verify results and show your work
     - Break down complex problems into smaller, executable steps
     - ALWAYS use non-interactive command parameters (no user input required)
     
+    JSON FORMATTING RULES:
+    - In Action Input, always use proper JSON format: {"parameter": "value"}
+    - For LaTeX content, use single backslashes: "\\documentclass{article}"
+    - For file paths, use forward slashes: "path/to/file.txt"
+    - Always quote string values and parameter names
+    - Do not include trailing commas in JSON objects
+    
     FORMAT YOUR RESPONSES EXACTLY AS:
     Thought: [your reasoning about the NEXT SINGLE action to take]
     Action: [exact_tool_name]
     Action Input: {"parameter_name": "value"}
+    
+    CRITICAL JSON FORMATTING RULES:
+    ✅ CORRECT examples:
+    Action Input: {"file_path": "test.txt", "content": "Hello"}
+    Action Input: {"command": "python script.py"}
+    Action Input: {"file_path": "document.tex", "instruction": "Add title section"}
+    
+    ❌ WRONG - Do NOT do this:
+    Action Input: "some string"
+    Action Input: {content: "missing quotes"}
+    Action Input: {"key": value}  (value not quoted)
+    
+    🔧 For LaTeX content, escape backslashes properly:
+    ✅ Action Input: {"file_path": "doc.tex", "content": "\\documentclass{article}\\n\\begin{document}\\nHello\\n\\end{document}"}
+    
+    🔧 For multiline content, use \\n for newlines:
+    ✅ Action Input: {"file_path": "script.py", "content": "import os\\nprint('Hello')\\n"}
+    
+    NEVER include explanations or markdown in Action Input - only valid JSON!
 
   user_prompt_template: |
     HOMEWORK PROBLEM TO SOLVE:
