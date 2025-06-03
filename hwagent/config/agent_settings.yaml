@@ -13,6 +13,7 @@ react_agent:
 
   # Safety settings
   max_file_size: 10485760  # 10MB
+  max_command_output: 1048576  # 1MB for command output
   blocked_commands:
     - "rm -rf /"
     - "sudo"

@@ -57,10 +57,10 @@ async def solve_problem_cli(problem: str, agent_id: str | None = None) -> None:
                 
                 if step['observation']:
                     obs_text = step['observation']
-                    # Truncate very long observations for readability
-                    if len(obs_text) > 200:
-                        obs_text = obs_text[:200] + "...\n[See full output above]"
-                    print(f"{Colors.GREEN}👁️ Result: {obs_text}{Colors.RESET}")
+                    # Show full observation with length info
+                    print(f"{Colors.GREEN}👁️ Result ({len(obs_text)} chars):")
+                    print(f"{Colors.GREEN}{obs_text}{Colors.RESET}")
+                    print()
         
         print(f"\n{Colors.BOLD}📂 Files created in: {result['working_directory']}{Colors.RESET}")
 

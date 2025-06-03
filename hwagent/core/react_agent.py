@@ -338,8 +338,9 @@ class ReActAgent:
                     step.observation = observation
                     
                     if verbose:
-                        obs_preview = observation[:200] + "..." if len(observation) > 200 else observation
-                        print(f"{GREEN}👁️ Result: {obs_preview}{RESET}")
+                        # Show full result, but with length info for user clarity
+                        print(f"{GREEN}👁️ Result ({len(observation)} chars):")
+                        print(f"{GREEN}{observation}{RESET}")
                         print()
                     
                     # Check if this was a final_answer tool call
@@ -349,7 +350,7 @@ class ReActAgent:
                             print(f"{GREEN}✅ Task completed with final_answer tool!{RESET}")
                         break
                     
-                    # Add assistant response and observation to conversation
+                    # Add assistant response and observation to conversation - LLM gets FULL observation
                     messages.append({"role": "assistant", "content": response})
                     messages.append({"role": "user", "content": f"Observation: {observation}"})
                 

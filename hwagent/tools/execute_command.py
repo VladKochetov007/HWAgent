@@ -142,11 +142,18 @@ async def execute_command_tool(
             stdout_text = stdout.decode('utf-8', errors='replace') if stdout else ""
             stderr_text = stderr.decode('utf-8', errors='replace') if stderr else ""
             
+            # Check output size limit
+            max_output_size = config.agent_settings["react_agent"]["max_command_output"]
+            total_output_size = len(stdout_text.encode('utf-8')) + len(stderr_text.encode('utf-8'))
+            
             # Prepare result
             result_parts = []
             result_parts.append(f"Command: {command}")
             result_parts.append(f"Working directory: {working_dir}")
             result_parts.append(f"Exit code: {process.returncode}")
+            
+            if total_output_size > max_output_size:
+                result_parts.append(f"⚠️ WARNING: Command output is large ({total_output_size} bytes)")
             
             if stdout_text:
                 result_parts.append(f"STDOUT:\n{stdout_text}")
