@@ -24,7 +24,7 @@ class EditFileTool(Tool):
             model_id=model,
             api_base=api_base,
             api_key=api_key,
-            system_message=system_prompt
+            messages=[{"role": "system", "content": system_prompt}]
         )
 
     def forward(self, file_path: str, instruction: str) -> str:
