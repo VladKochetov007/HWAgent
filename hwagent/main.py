@@ -34,7 +34,7 @@ def main():
             model_id=api_config['openrouter']['thinking_model'],
             api_base=api_config['openrouter']['base_url'],
             api_key=os.getenv("OPENROUTER_API_KEY"),
-            temperature=0.2
+            temperature=api_config['openrouter']['thinking_model_temperature']
         ),
         system_prompt=SYSTEM_PROMPT,
         add_base_tools=True,

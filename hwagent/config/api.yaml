@@ -2,3 +2,4 @@ openrouter:
   base_url: https://openrouter.ai/api/v1
   thinking_model: google/gemini-2.5-flash-preview-05-20:thinking
   simple_model: meta-llama/llama-3.2-3b-instruct
+  thinking_model_temperature: 0.2
