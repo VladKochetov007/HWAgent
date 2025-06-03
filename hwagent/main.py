@@ -25,7 +25,8 @@ def main():
         model=api_config['openrouter']['simple_model'],
         api_base=api_config['openrouter']['base_url'],
         api_key=os.getenv("OPENROUTER_API_KEY"),
-        system_prompt=prompts['simple']['system_prompt']
+        system_prompt=prompts['simple']['system_prompt'],
+        temperature=api_config['model_parameters']['simple_temperature']
     )
 
     agent = CodeAgent(
@@ -34,7 +35,7 @@ def main():
             model_id=api_config['openrouter']['thinking_model'],
             api_base=api_config['openrouter']['base_url'],
             api_key=os.getenv("OPENROUTER_API_KEY"),
-            temperature=api_config['openrouter']['thinking_model_temperature']
+            temperature=api_config['model_parameters']['thinking_temperature']
         ),
         system_prompt=SYSTEM_PROMPT,
         add_base_tools=True,
