@@ -3,7 +3,9 @@ from smolagents import Tool
 
 class ShellTool(Tool):
     name = "shell"
-    description = "Execute a shell command and return the output."
+    description = """Execute a shell command and return the output. 
+    Remember to use non-interactive command parameters (no user input required). 
+    e.g. pdflatex --interaction=nonstopmode"""
     inputs = {
         "command": {
             "type": "string",

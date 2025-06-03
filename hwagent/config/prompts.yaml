@@ -39,6 +39,12 @@ thinking:
 
     Create .tex with step-by-step solution first. Verify with python. compile to pdf if converges. 
     Provide some beautiful plots with matplotlib if needed.
+
+    If you need to attach a file to the final answer, use this format:
+    ATTACHED_FILES: `<file_path1>`, `<file_path2>`, ...
+    (word ATTACHED_FILES, double quotes, comma separated list of file paths in inverted commas)
+    In the end of the final answer. Firstly it is compiled PDF, then some other files.
+
 simple:
   system_prompt: |
     You are a code editing assistant. Your task is to edit files based on user instructions.

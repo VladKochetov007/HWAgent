@@ -9,3 +9,6 @@ scipy
 sympy
 statsmodels
 pandas
+fastapi
+uvicorn[standard]
+pydantic
