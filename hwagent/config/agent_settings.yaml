@@ -1,32 +1,9 @@
-# Agent behavior configuration
-react_agent:
-  # Iteration limits
-  max_iterations: 25
-
-  # Response timeout settings
-  thinking_timeout: 300  # seconds
-  tool_execution_timeout: 120  # seconds
-
-  # Working directory settings
-  tmp_dir_prefix: "hwagent_"
-  cleanup_tmp_dirs: false
-
-  # Safety settings
-  max_file_size: 10485760  # 10MB
-  max_command_output: 1048576  # 1MB for command output
-  blocked_commands:
-    - "rm -rf /"
-    - "sudo"
-    - "chmod +x /bin/*"
-    - "systemctl"
-    - "service"
-  
-  # Tool settings
-  web_search:
-    max_results: 10
-    timeout: 30
-  
-  code_execution:
-    enable_network: false
-    max_runtime: 60  # seconds
-    memory_limit: 512  # MB
+agent_settings:
+  max_steps: 30
+  additional_authorized_imports:
+    - numpy
+    - scipy
+    - sympy
+    - statsmodels
+    - pandas
+    - matplotlib
