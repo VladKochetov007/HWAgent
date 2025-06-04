@@ -171,35 +171,6 @@
             padding-bottom: 10px;
         }
         
-        .example-tasks {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-            gap: 15px;
-            margin: 20px 0;
-        }
-        
-        .example-task {
-            background: #f8fafc;
-            border: 1px solid #e2e8f0;
-            border-radius: 8px;
-            padding: 15px;
-            cursor: pointer;
-            transition: all 0.2s ease;
-        }
-        
-        .example-task:hover {
-            background: #f1f5f9;
-            border-color: #667eea;
-        }
-        
-        .example-task.vision-task {
-            border-left: 4px solid #10b981;
-        }
-        
-        .example-task.text-task {
-            border-left: 4px solid #3b82f6;
-        }
-        
         .file-item {
             display: inline-block;
             margin: 10px 5px;
@@ -259,62 +230,9 @@
         </div>
         
         <div class="card">
-            <h2>🚀 Quick Start Examples</h2>
-            <div class="example-tasks">
-                <!-- Text-based tasks -->
-                <div class="example-task text-task" onclick="setTask('Write a Python function that calculates the factorial of a number')">
-                    <strong>💻 Code Generation</strong>
-                    <p>Create code and programs</p>
-                </div>
-                <div class="example-task text-task" onclick="setTask('Explain the concept of machine learning in simple terms')">
-                    <strong>📚 Educational Content</strong>
-                    <p>Explanations and learning materials</p>
-                </div>
-                <div class="example-task text-task" onclick="setTask('Create a detailed plan for learning Python programming')">
-                    <strong>📋 Planning & Strategy</strong>
-                    <p>Planning and strategies</p>
-                </div>
-                <div class="example-task text-task" onclick="setTask('Write a creative story about a robot discovering emotions')">
-                    <strong>✍️ Creative Writing</strong>
-                    <p>Creative writing and stories</p>
-                </div>
-                <div class="example-task text-task" onclick="setTask('Analyze the pros and cons of renewable energy sources')">
-                    <strong>🔍 Analysis & Research</strong>
-                    <p>Analysis and research</p>
-                </div>
-                <div class="example-task text-task" onclick="setTask('Calculate the compound interest for $1000 invested at 5% annually for 10 years')">
-                    <strong>🧮 Mathematical Calculations</strong>
-                    <p>Mathematical calculations</p>
-                </div>
-                
-                <!-- Vision-based tasks -->
-                <div class="example-task vision-task" onclick="setTask('Analyze this image and describe what you see in detail')">
-                    <strong>📷 Image Analysis</strong>
-                    <p>Analyze image contents</p>
-                </div>
-                <div class="example-task vision-task" onclick="setTask('Extract all text from this image and transcribe it accurately')">
-                    <strong>📝 Text Recognition</strong>
-                    <p>OCR - extract text from images</p>
-                </div>
-                <div class="example-task vision-task" onclick="setTask('Solve the mathematical equation or problem shown in this image step by step')">
-                    <strong>📐 Math Solver</strong>
-                    <p>Solve mathematical problems</p>
-                </div>
-                <div class="example-task vision-task" onclick="setTask('Extract and organize data from this chart/diagram into a structured format')">
-                    <strong>📊 Data Extraction</strong>
-                    <p>Analyze charts and graphs</p>
-                </div>
-            </div>
-            <p style="margin: 15px 0; color: #6b7280; font-size: 14px;">
-                <span style="color: #3b82f6;">🔵 Blue tasks</span> work without images | 
-                <span style="color: #10b981;">🟢 Green tasks</span> require image uploads
-            </p>
-        </div>
-        
-        <div class="card">
             <h2>🎯 Task Configuration</h2>
             <label><strong>Task Description:</strong></label>
-            <textarea id="taskInput" placeholder="Describe the task for the agent. Images are optional - the agent can work with or without them...">Write a Python function that calculates the factorial of a number.</textarea>
+            <textarea id="taskInput" placeholder="Describe the task for the agent. Images are optional - the agent can work with or without them..."></textarea>
             
             <div style="margin: 15px 0;">
                 <label><strong>Max Steps:</strong> 
@@ -417,11 +335,6 @@
             uploadedImages.splice(index, 1);
             updateUploadDisplay();
             showToast('🗑️ Image removed', 'info');
-        }
-        
-        function setTask(taskText) {
-            document.getElementById('taskInput').value = taskText;
-            showToast('📝 Task template loaded', 'info');
         }
         
         async function runTask() {
