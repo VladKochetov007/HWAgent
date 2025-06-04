@@ -77,8 +77,15 @@ def run_tests():
             "-v", "--tb=short"
         ], cwd=test_dir.parent)
         
+        print("\n🖼️ Running vision tests...")
+        result3 = subprocess.run([
+            sys.executable, "-m", "pytest", 
+            str(test_dir / "test_vision.py"),
+            "-v", "--tb=short"
+        ], cwd=test_dir.parent)
+        
         # Overall result
-        if result1.returncode == 0 and result2.returncode == 0:
+        if result1.returncode == 0 and result2.returncode == 0 and result3.returncode == 0:
             print("\n✅ All tests passed!")
             return True
         else:

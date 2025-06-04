@@ -196,6 +196,19 @@ def format_step_data(step) -> dict:
             "has_attachments": False
         }
 
+def get_image_paths_from_pil_objects(pil_images: List[Image.Image], original_paths: List[str]) -> List[str]:
+    """Extract file paths from PIL.Image objects - try to preserve original paths"""
+    if not pil_images:
+        return []
+    
+    # For now, we'll return the original paths if available
+    # In a more complex implementation, we could save PIL images and return new paths
+    if original_paths and len(original_paths) == len(pil_images):
+        return original_paths[:len(pil_images)]
+    
+    # Fallback: return generic image identifiers
+    return [f"image_{i}.png" for i in range(len(pil_images))]
+
 async def stream_agent_execution(
     task: str,
     max_steps: Optional[int] = None,
@@ -210,30 +223,26 @@ async def stream_agent_execution(
         if max_steps:
             agent.max_steps = max_steps
         
-        # Process and validate images
-        processed_images = prepare_images_for_agent(images or [])
+        # Process and validate images - now returns PIL.Image objects
+        original_image_paths = images or []
+        processed_images = prepare_images_for_agent(original_image_paths)
         
         if processed_images:
-            print(f"🖼️ Processing {len(processed_images)} images: {processed_images}")
+            print(f"🖼️ Processing {len(processed_images)} images")
         
-        # Prepare additional_args with image_paths
-        agent_additional_args = additional_args.copy() if additional_args else {}
-        if processed_images:
-            agent_additional_args["image_paths"] = processed_images
-            print(f"📤 Passing images to agent via additional_args['image_paths']")
-        
-        # Run agent in streaming mode
+        # Run agent in streaming mode with images parameter
         for step in agent.run(
             task=task,
             stream=True,
             reset=True,
-            additional_args=agent_additional_args  # Pass images via additional_args
+            images=processed_images if processed_images else None,  # Pass PIL.Image objects directly
+            additional_args=additional_args  # Keep additional_args for other purposes
         ):
             step_data = format_step_data(step)
             
             # Add image info to step data
             if processed_images:
-                step_data["input_images"] = processed_images
+                step_data["input_images"] = get_image_paths_from_pil_objects(processed_images, original_image_paths)
                 step_data["image_count"] = len(processed_images)
             
             # Format as Server-Sent Event
@@ -256,7 +265,7 @@ async def stream_agent_execution(
             "duration": None,
             "is_final": True,
             "files": [],
-            "input_images": processed_images if 'processed_images' in locals() else [],
+            "input_images": get_image_paths_from_pil_objects(processed_images, original_image_paths) if 'processed_images' in locals() else [],
             "image_count": len(processed_images) if 'processed_images' in locals() else 0,
             # Add compatibility fields for frontend
             "type": "error",
@@ -298,24 +307,20 @@ async def run_task(request: TaskRequest):
         if max_steps := request.max_steps:
             agent.max_steps = max_steps
         
-        # Process and validate images
-        processed_images = prepare_images_for_agent(request.images or [])
+        # Process and validate images - now returns PIL.Image objects
+        original_image_paths = request.images or []
+        processed_images = prepare_images_for_agent(original_image_paths)
         
         if processed_images:
-            print(f"🖼️ Processing {len(processed_images)} images for task: {processed_images}")
+            print(f"🖼️ Processing {len(processed_images)} images for task")
         
-        # Prepare additional_args with image_paths
-        agent_additional_args = request.additional_args.copy() if request.additional_args else {}
-        if processed_images:
-            agent_additional_args["image_paths"] = processed_images
-            print(f"📤 Passing images to agent via additional_args['image_paths']")
-        
-        # Run agent without streaming
+        # Run agent without streaming with images parameter
         result = agent.run(
             task=request.task,
             stream=False,
             reset=True,
-            additional_args=agent_additional_args  # Pass images via additional_args
+            images=processed_images if processed_images else None,  # Pass PIL.Image objects directly
+            additional_args=request.additional_args  # Keep additional_args for other purposes
         )
         
         # Extract files from result
@@ -332,7 +337,7 @@ async def run_task(request: TaskRequest):
             "files": files,
             "has_attachments": len(files) > 0,
             "file_count": len(files),
-            "input_images": processed_images,
+            "input_images": get_image_paths_from_pil_objects(processed_images, original_image_paths),
             "image_count": len(processed_images),
             "has_images": len(processed_images) > 0
         }
@@ -549,28 +554,33 @@ def process_base64_image(base64_data: str, file_name: str = None) -> str:
     except Exception as e:
         raise ValueError(f"Error processing base64 image: {str(e)}")
 
-def prepare_images_for_agent(images: List[str]) -> List[str]:
-    """Prepare and validate images for agent processing"""
+def prepare_images_for_agent(images: List[str]) -> List[Image.Image]:
+    """Prepare and validate images for agent processing - returns PIL.Image objects"""
     if not images:
         return []
     
     processed_images = []
     for image in images:
-        if image.startswith('data:') or (len(image) > 100 and '/' not in image):
-            # Looks like base64 data
-            try:
+        try:
+            if image.startswith('data:') or (len(image) > 100 and '/' not in image):
+                # Looks like base64 data
                 file_path = process_base64_image(image)
-                processed_images.append(file_path)
-            except ValueError as e:
-                print(f"⚠️ Skipping invalid base64 image: {e}")
-                continue
-        else:
-            # Assume it's a file path
-            if os.path.exists(image) and validate_image_file(image):
-                processed_images.append(image)
+                # Load the saved image as PIL Image
+                pil_image = Image.open(file_path)
+                processed_images.append(pil_image)
+                print(f"🖼️ Loaded base64 image: {pil_image.size} pixels")
             else:
-                print(f"⚠️ Skipping invalid image file: {image}")
-                continue
+                # Assume it's a file path
+                if os.path.exists(image) and validate_image_file(image):
+                    pil_image = Image.open(image)
+                    processed_images.append(pil_image)
+                    print(f"🖼️ Loaded image from {image}: {pil_image.size} pixels")
+                else:
+                    print(f"⚠️ Skipping invalid image file: {image}")
+                    continue
+        except Exception as e:
+            print(f"⚠️ Error processing image {image}: {e}")
+            continue
     
     return processed_images
 
