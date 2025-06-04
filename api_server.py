@@ -150,7 +150,11 @@ def format_step_data(step) -> dict:
             "duration": step.duration,
             "is_final": False,
             "files": files,
-            "has_files": len(files) > 0
+            "has_files": len(files) > 0,
+            # Add compatibility fields for frontend
+            "type": "step",
+            "step": step.step_number,
+            "content": step.observations or ""
         }
     elif isinstance(step, AgentType) or isinstance(step, str):
         # Extract files from final result
@@ -169,7 +173,11 @@ def format_step_data(step) -> dict:
             "duration": None,
             "is_final": True,
             "files": files,
-            "has_files": len(files) > 0
+            "has_files": len(files) > 0,
+            # Add compatibility fields for frontend
+            "type": "final",
+            "result": str(step),
+            "has_attachments": len(files) > 0
         }
     else:
         return {
@@ -181,7 +189,11 @@ def format_step_data(step) -> dict:
             "duration": None,
             "is_final": True,
             "files": [],
-            "has_files": False
+            "has_files": False,
+            # Add compatibility fields for frontend
+            "type": "final",
+            "result": str(step),
+            "has_attachments": False
         }
 
 async def stream_agent_execution(
@@ -245,7 +257,10 @@ async def stream_agent_execution(
             "is_final": True,
             "files": [],
             "input_images": processed_images if 'processed_images' in locals() else [],
-            "image_count": len(processed_images) if 'processed_images' in locals() else 0
+            "image_count": len(processed_images) if 'processed_images' in locals() else 0,
+            # Add compatibility fields for frontend
+            "type": "error",
+            "content": f"Error: {str(e)}"
         }
         yield f"data: {json.dumps(error_data)}\n\n"
 
@@ -262,7 +277,7 @@ async def stream_task(request: TaskRequest):
             additional_args=request.additional_args,
             images=request.images
         ),
-        media_type="text/plain",
+        media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",
             "Connection": "keep-alive",

@@ -1,14 +1,24 @@
-smolagents[all]
+# Core API dependencies
+fastapi>=0.104.0
+uvicorn[standard]>=0.24.0
+pydantic>=2.5.0
+
+# Image processing
+Pillow>=10.0.0
+
+# Testing dependencies
+pytest>=7.4.0
+requests>=2.31.0
+
+# HWAgent core
+smolagents
+
 python-dotenv
 pyyaml
 openai
-requests
 matplotlib
 numpy
 scipy
 sympy
 statsmodels
 pandas
-fastapi
-uvicorn[standard]
-pydantic
