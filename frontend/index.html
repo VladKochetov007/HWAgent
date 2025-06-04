@@ -84,6 +84,15 @@
             background: #eff6ff;
             transform: scale(1.02);
         }
+        .upload-area.paste-ready {
+            border-color: #10b981;
+            background: #ecfdf5;
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.8; }
+        }
         .result { 
             background: #f8f9fa; 
             padding: 20px; 
@@ -224,6 +233,7 @@
             <div class="upload-area" id="uploadArea">
                 <h3>🖼️ Drag & Drop Images Here</h3>
                 <p>or click to select files</p>
+                <p><strong>📋 Press Ctrl+V to paste from clipboard</strong></p>
                 <small>Supported formats: PNG, JPEG, JPG, GIF, BMP, WEBP | Optional for Vision tasks</small>
             </div>
             <input type="file" id="fileInput" multiple accept="image/*" style="display: none;">
@@ -495,6 +505,53 @@
                 setTimeout(() => toast.remove(), 300);
             }, 3000);
         }
+        
+        // Clipboard paste functionality
+        async function handlePaste(event) {
+            const items = event.clipboardData.items;
+            const imageFiles = [];
+            
+            for (let i = 0; i < items.length; i++) {
+                const item = items[i];
+                
+                // Check if item is an image
+                if (item.type.startsWith('image/')) {
+                    const file = item.getAsFile();
+                    if (file) {
+                        imageFiles.push(file);
+                    }
+                }
+            }
+            
+            if (imageFiles.length > 0) {
+                event.preventDefault(); // Prevent default paste behavior
+                await uploadFiles(imageFiles);
+                showToast(`📋 Pasted ${imageFiles.length} image(s) from clipboard!`, 'success');
+            }
+        }
+        
+        // Visual feedback for paste readiness
+        function showPasteReady() {
+            const uploadArea = document.getElementById('uploadArea');
+            uploadArea.classList.add('paste-ready');
+            setTimeout(() => {
+                uploadArea.classList.remove('paste-ready');
+            }, 3000);
+        }
+        
+        // Keyboard shortcuts handler
+        document.addEventListener('keydown', (event) => {
+            // Show paste ready indication when Ctrl is pressed
+            if (event.ctrlKey && !event.repeat) {
+                showPasteReady();
+            }
+        });
+        
+        // Add paste event listener to document
+        document.addEventListener('paste', handlePaste);
+        
+        // Also add paste event listener to upload area for better UX
+        document.getElementById('uploadArea').addEventListener('paste', handlePaste);
         
         // API status check
         async function checkApiStatus() {

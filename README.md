@@ -1,152 +1,256 @@
-# 🤖 HWAgent AI Assistant - Full Stack
+# HWAgent Streaming API with Vision Support
 
-Complete HWAgent stack with support for both regular text tasks and Vision Language Models for working with images.
+Hardware Agent with advanced streaming capabilities and Vision Language Model support for real-time task execution.
+
+## 🎯 Key Features
+
+- **🖼️ Vision Language Model Support** - Upload and analyze images with AI
+- **🌊 Real-time Streaming** - Server-Sent Events for step-by-step execution 
+- **📎 Smart File Detection** - Automatic file attachment detection
+- **🔧 Hardware Operations** - Shell commands, file operations, code execution
+- **🌐 Modern Web Interface** - Drag & drop image uploads, real-time streaming display
+- **🧪 Comprehensive Testing** - Vision tests with geometric shapes
+- **🎨 Clean User Experience** - System information automatically hidden from users
 
 ## 🚀 Quick Start
 
+### Start the API Server
 ```bash
-python start_app.py
+# With verbose output for debugging
+HWAGENT_VERBOSE=1 python api_server.py
+
+# Or normal mode
+python api_server.py
 ```
 
-This script automatically:
-- ✅ Checks dependencies
-- 🚀 Starts API server (localhost:8000)
-- 🌐 Starts frontend (localhost:3000)
-- 📁 Creates minimal web interface if it doesn't exist
-- 🌐 Opens browser automatically
+### Start the Web Interface
+```bash
+# In another terminal
+cd frontend && python -m http.server 3000
+```
 
-## 🎯 Features
+### Or Use the Demo Script
+```bash
+python demo_frontend.py
+```
 
-### 💻 Text Tasks (without images)
-- 🧮 **Programming** - creating code in Python, JavaScript, etc.
-- 📚 **Education** - explanations of concepts and terms
-- 🔍 **Analysis** - research and comparisons
-- ✍️ **Creative Writing** - writing texts and stories
-- 📊 **Calculations** - mathematical computations
-- 📋 **Planning** - creating plans and strategies
+## 🖼️ Vision Capabilities
 
-### 🖼️ Vision Tasks (with images)
-- 📷 **Image Analysis** - content description
-- 📝 **Text Recognition** - OCR from images
-- 📐 **Math Solving** - formulas and equations from pictures
-- 📊 **Data Extraction** - analysis of charts and graphs
-- 🎓 **Educational Materials** - creating content based on images
+### Supported Image Formats
+- PNG, JPEG, JPG, GIF, BMP, WEBP
+- Base64 encoded images
+- Drag & drop file uploads
+- **📋 Clipboard paste (Ctrl+V)** - Perfect for screenshots
 
-### 🌐 Web Interface
-- 📤 **Optional image upload** (not required!)
-- 🎯 **Ready templates** for text and vision tasks
-- ⚡ **Normal/Streaming** execution modes
-- 📁 **File downloads** created by the agent
-- 🔄 **Reactive interface** with notifications
+### Vision Features
+- Shape and color recognition
+- Multiple object analysis
+- Image comparison
+- Pattern detection
+- Natural language descriptions in multiple languages
 
-## 🌐 Access
+### Example Usage
+```python
+# Upload an image and analyze it
+task_data = {
+    "task": "Describe what you see in this image",
+    "max_steps": 3,
+    "images": ["path/to/image.png"]  # or base64 data
+}
+```
 
-After startup, available at:
-- **Web Interface**: http://localhost:3000
-- **API Server**: http://localhost:8000
-- **API Documentation**: http://localhost:8000/docs
+## 🌊 Streaming API
 
-## 🎯 Usage Examples
+### Real-time Task Execution
+```bash
+curl -X POST "http://localhost:8000/stream-task" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "task": "Create a Python script and analyze an image", 
+    "max_steps": 5,
+    "images": ["uploads/image.png"]
+  }'
+```
 
-### Text Tasks (no images needed)
+### Response Format
+```json
+{
+  "step_number": 1,
+  "step_type": "action", 
+  "observations": "Step details...",
+  "action_output": "Result...",
+  "files": ["generated_file.py"],
+  "has_files": true,
+  "input_images": ["uploaded_image.png"],
+  "image_count": 1
+}
+```
 
-1. **Programming:**
-   ```
-   "Write a Python function that calculates the factorial of a number"
-   ```
+## 📎 File Handling
 
-2. **Education:**
-   ```
-   "Explain the concept of machine learning in simple terms"
-   ```
+### Automatic File Detection
+- Files mentioned in agent responses are automatically detected
+- `ATTACHED_FILES:` system information is hidden from users
+- Files remain accessible via the `/files/` endpoint
 
-3. **Analysis:**
-   ```
-   "Analyze the pros and cons of renewable energy sources"
-   ```
+### File Access
+```bash
+# Get file info
+curl "http://localhost:8000/files/info/script.py"
 
-4. **Mathematics:**
-   ```
-   "Calculate the compound interest for $1000 invested at 5% annually for 10 years"
-   ```
+# Download file  
+curl "http://localhost:8000/files/script.py"
 
-### Vision Tasks (require images)
+# List all files
+curl "http://localhost:8000/files"
+```
 
-1. **Image Analysis:**
-   ```
-   "Analyze this image and describe what you see in detail"
-   ```
+## 🧪 Testing
 
-2. **Text Recognition:**
-   ```
-   "Extract all text from this image and transcribe it"
-   ```
+### Run All Tests
+```bash
+python tests/run_tests.py
+```
 
-3. **Math Solving:**
-   ```
-   "Solve the mathematical equation shown in this image step by step"
-   ```
+### Test Categories
+```bash
+# Basic API functionality
+python -m pytest tests/test_api_basic.py -v
 
-4. **Code Creation:**
-   ```
-   "Based on this diagram, create Python code that implements the shown algorithm"
-   ```
+# Streaming capabilities  
+python -m pytest tests/test_streaming.py -v
 
-## ⚙️ Technical Details
+# Vision functionality
+python -m pytest tests/test_vision.py -v
+```
 
-### Architecture
-- **Backend**: FastAPI + smolagents + OpenRouter
-- **Frontend**: Vanilla HTML/CSS/JS
-- **AI Models**: Google Gemini Flash Preview (vision), Llama 3.2 (text)
-- **File Processing**: PIL, OpenCV support
+### Quick Vision Test
+```bash
+# Generate test images and run vision tests
+python tests/create_test_images.py
+python test_vision_quick.py
+```
 
-### API Endpoints
-- `POST /run-task` - Execute task (with or without images)
-- `POST /stream-task` - Streaming execution
-- `POST /upload-image` - Upload image (optional)
-- `GET /files/{path}` - Download files
-- `GET /health` - System status
+## 📡 API Endpoints
 
-### Supported Formats
-- **Images**: PNG, JPEG, JPG, GIF, BMP, WEBP (optional)
-- **Output Files**: PDF, Python, LaTeX, TXT, JSON, etc.
+### Core Endpoints
+- `POST /run-task` - Execute task synchronously
+- `POST /stream-task` - Execute task with streaming 
+- `GET /health` - Health check with capabilities
+- `GET /files` - List available files
 
-## 🛠️ Configuration
+### Vision Endpoints
+- `POST /upload-image` - Upload single image
+- `POST /upload-images` - Upload multiple images
+- `GET /files/{path}` - Serve uploaded images
+
+### Image Upload Example
+```python
+import requests
+
+# Upload image
+with open('image.png', 'rb') as f:
+    files = {'file': ('image.png', f, 'image/png')}
+    data = {'description': 'Test image'}
+    response = requests.post('http://localhost:8000/upload-image', 
+                           files=files, data=data)
+    image_path = response.json()['file_path']
+
+# Use in task
+task_data = {
+    "task": "Analyze this image",
+    "images": [image_path]
+}
+```
+
+## 🎨 Web Interface Features
+
+- **Drag & Drop Image Upload** - Intuitive file handling
+- **📋 Clipboard Paste Support** - Press Ctrl+V to paste images from clipboard
+- **Real-time Streaming Display** - See agent progress live
+- **Automatic File Links** - Generated files are clickable
+- **Vision Task Support** - Optional image uploads for any task
+- **Clean Result Display** - System information automatically hidden
+- **Multi-language Support** - Works with Russian and English prompts
+
+## 🔧 Configuration
 
 ### Environment Variables
 ```bash
-export OPENROUTER_API_KEY="your_key_here"
+# Enable verbose mode for debugging
+HWAGENT_VERBOSE=1
+
+# API keys (set in .env file)
+OPENROUTER_API_KEY=your_key_here
 ```
 
-### Model Configuration
-Edit `hwagent/config/api.yaml`:
-```yaml
-openrouter:
-  thinking_model: google/gemini-2.5-flash-preview-05-20:thinking
-  simple_model: meta-llama/llama-3.2-3b-instruct
+### Agent Settings
+See `hwagent/config/` for:
+- `agent_settings.yaml` - Max steps, imports, etc.
+- `api.yaml` - Model configuration  
+- `prompts.yaml` - System prompts
+
+## 🛠️ Development
+
+### Project Structure
+```
+HWAgent/
+├── api_server.py           # Main FastAPI server
+├── hwagent/               # Core agent logic
+├── frontend/              # Web interface files  
+├── tests/                 # Comprehensive test suite
+├── test_images/           # Generated test images
+└── uploads/               # User uploaded files
 ```
 
-## 🛑 Stopping
+### Adding New Features
+1. Update agent logic in `hwagent/`
+2. Add API endpoints in `api_server.py`
+3. Create tests in `tests/`
+4. Update frontend if needed
 
-Press `Ctrl+C` in terminal to stop all services.
+## 📋 Requirements
 
-## 🐛 Troubleshooting
+```
+fastapi>=0.104.0
+uvicorn[standard]>=0.24.0  
+smolagents
+Pillow>=10.0.0
+pydantic>=2.5.0
+python-dotenv
+```
 
-### Ports Busy
+## 🎯 Example Use Cases
+
+### Vision Tasks
+- **Document Analysis** - Extract text and analyze layouts
+- **Quality Control** - Detect defects in manufacturing
+- **Content Moderation** - Analyze images for compliance
+- **Scientific Research** - Analyze experimental results
+
+### Automation Tasks  
+- **File Processing** - Batch operations with real-time progress
+- **System Administration** - Server management with monitoring
+- **Data Analysis** - Process datasets with step-by-step updates
+- **Code Generation** - Create and test code with immediate feedback
+
+## 🔍 Troubleshooting
+
+### Common Issues
+- **Vision not working**: Check image format and size
+- **Streaming stops**: Verify network connection
+- **Files not detected**: Check `ATTACHED_FILES:` format
+- **API not responding**: Restart with `HWAGENT_VERBOSE=1`
+
+### Debug Mode
 ```bash
-# Stop processes on ports
-sudo lsof -ti:8000 | xargs kill -9
-sudo lsof -ti:3000 | xargs kill -9
-```
+# Enable verbose logging
+HWAGENT_VERBOSE=1 python api_server.py
 
-### Missing Dependencies
-```bash
-pip install fastapi uvicorn Pillow requests
+# Check API health
+curl http://localhost:8000/health
 ```
-
-### Agent Issues
-Check configuration in `hwagent/config/` folder
 
 ---
 
-**💡 New:** The agent now works both with and without images! Image upload is completely optional - you can solve regular tasks without visual content. 🎉 
+**Made with ❤️ for advanced AI automation** 

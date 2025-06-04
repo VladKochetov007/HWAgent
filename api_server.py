@@ -131,6 +131,17 @@ def extract_files_from_content(content: str) -> list[str]:
     
     return list(dict.fromkeys(valid_files))  # Remove duplicates while preserving order
 
+def clean_user_response(text: str) -> str:
+    """Clean response text by removing system information like ATTACHED_FILES"""
+    if not text:
+        return text
+    
+    # Remove ATTACHED_FILES section and everything after it
+    if "ATTACHED_FILES:" in text:
+        text = text.split("ATTACHED_FILES:")[0].strip()
+    
+    return text
+
 def format_step_data(step) -> dict:
     """Format agent step data for API response"""
     if isinstance(step, ActionStep):
@@ -141,11 +152,15 @@ def format_step_data(step) -> dict:
         if step.action_output:
             files.extend(extract_files_from_content(str(step.action_output)))
         
+        # Clean observations for user display
+        clean_observations = clean_user_response(step.observations) if step.observations else None
+        clean_action_output = clean_user_response(str(step.action_output)) if step.action_output is not None else None
+        
         return {
             "step_number": step.step_number,
             "step_type": "action",
-            "observations": step.observations,
-            "action_output": str(step.action_output) if step.action_output is not None else None,
+            "observations": clean_observations,
+            "action_output": clean_action_output,
             "error": str(step.error) if step.error else None,
             "duration": step.duration,
             "is_final": False,
@@ -154,11 +169,15 @@ def format_step_data(step) -> dict:
             # Add compatibility fields for frontend
             "type": "step",
             "step": step.step_number,
-            "content": step.observations or ""
+            "content": clean_observations or ""
         }
     elif isinstance(step, AgentType) or isinstance(step, str):
-        # Extract files from final result
-        files = extract_files_from_content(str(step))
+        # Extract files from final result BEFORE cleaning
+        raw_result = str(step)
+        files = extract_files_from_content(raw_result)
+        
+        # Clean the result for user display
+        clean_result = clean_user_response(raw_result)
         
         # Log final result file extraction
         if files:
@@ -168,7 +187,7 @@ def format_step_data(step) -> dict:
             "step_number": -1,
             "step_type": "final_result",
             "observations": None,
-            "action_output": str(step),
+            "action_output": clean_result,
             "error": None,
             "duration": None,
             "is_final": True,
@@ -176,15 +195,17 @@ def format_step_data(step) -> dict:
             "has_files": len(files) > 0,
             # Add compatibility fields for frontend
             "type": "final",
-            "result": str(step),
+            "result": clean_result,
             "has_attachments": len(files) > 0
         }
     else:
+        clean_result = clean_user_response(str(step))
+        
         return {
             "step_number": -1,
             "step_type": "unknown",
             "observations": None,
-            "action_output": str(step),
+            "action_output": clean_result,
             "error": None,
             "duration": None,
             "is_final": True,
@@ -192,7 +213,7 @@ def format_step_data(step) -> dict:
             "has_files": False,
             # Add compatibility fields for frontend
             "type": "final",
-            "result": str(step),
+            "result": clean_result,
             "has_attachments": False
         }
 
@@ -323,8 +344,12 @@ async def run_task(request: TaskRequest):
             additional_args=request.additional_args  # Keep additional_args for other purposes
         )
         
-        # Extract files from result
-        files = extract_files_from_content(str(result))
+        # Extract files from raw result BEFORE cleaning
+        raw_result = str(result)
+        files = extract_files_from_content(raw_result)
+        
+        # Clean the result for user display
+        clean_result = clean_user_response(raw_result)
         
         # Log file extraction for debugging
         if files:
@@ -332,7 +357,7 @@ async def run_task(request: TaskRequest):
         
         response_data = {
             "success": True,
-            "result": str(result),
+            "result": clean_result,  # Use cleaned result for user
             "task": request.task,
             "files": files,
             "has_attachments": len(files) > 0,
