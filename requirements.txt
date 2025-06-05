@@ -22,3 +22,6 @@ scipy
 sympy
 statsmodels
 pandas
+
+# Additional dependencies
+aiofiles>=23.2.0

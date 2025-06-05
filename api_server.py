@@ -25,10 +25,16 @@ app = FastAPI(
     version="2.0.0"
 )
 
-# Add CORS middleware
+# Add CORS middleware for GitHub Pages deployment
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # In production, specify exact origins
+    allow_origins=[
+        "http://localhost:3000",  # Local development
+        "http://127.0.0.1:3000",  # Local development
+        "https://*.github.io",     # GitHub Pages (wildcard)
+        "https://your-username.github.io",  # Your specific GitHub Pages domain
+        "*"  # Remove this in production, specify exact domains
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

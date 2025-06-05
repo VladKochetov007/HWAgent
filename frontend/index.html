@@ -3,7 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>HWAgent Vision API</title>
+    <title>HWAgent</title>
+    <!-- Load configuration first -->
+    <script src="config.js"></script>
     <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🤖</text></svg>">
     <style>
         body { 
@@ -272,7 +274,19 @@
     </div>
     
     <script>
-        const API_BASE = 'http://localhost:8000';
+        // Configuration
+        const API_BASE = CURRENT_CONFIG.API_BASE;
+        const DEBUG = CURRENT_CONFIG.DEBUG;
+        
+        // Debug logging
+        function debugLog(message, data = null) {
+            if (DEBUG) {
+                console.log(`🐛 ${message}`, data || '');
+            }
+        }
+        
+        debugLog(`Using API: ${API_BASE}`);
+        
         let uploadedImages = [];
         
         // Drag and drop functionality
