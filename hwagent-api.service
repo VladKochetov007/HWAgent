@@ -6,9 +6,9 @@ After=network.target
 Type=simple
 User=root
 WorkingDirectory=/root/HWAgent
-Environment=PATH=/root/HWAgent/.venv/bin
+Environment=PATH=/usr/bin:/usr/local/bin:/root/HWAgent/.venv/bin
 Environment=HWAGENT_VERBOSE=1
-ExecStart=/root/HWAgent/.venv/bin/python -m uvicorn api_server:app --host 0.0.0.0 --port 8000
+ExecStart=/root/HWAgent/.venv/bin/python -m uvicorn api_server:app --host 127.0.0.1 --port 8000
 Restart=always
 RestartSec=3
 

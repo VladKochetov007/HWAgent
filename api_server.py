@@ -33,6 +33,8 @@ app.add_middleware(
         "http://127.0.0.1:3000",  # Local development
         "https://*.github.io",     # GitHub Pages (wildcard)
         "https://your-username.github.io",  # Your specific GitHub Pages domain
+        "https://91.108.121.43",  # HTTPS API endpoint
+        "http://91.108.121.43",   # HTTP API endpoint (for redirects)
         "*"  # Remove this in production, specify exact domains
     ],
     allow_credentials=True,

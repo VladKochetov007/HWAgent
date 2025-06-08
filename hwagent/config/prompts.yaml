@@ -95,7 +95,7 @@ thinking:
            &\quad + \cdots + a_nx^n
       \end{align}
 
-    If you need to attach a file to the final answer, use this format:
+    You must attach a file to the final answer for any tehc/math/science/etc. task, use this format:
     ATTACHED_FILES: `<file_path1>`, `<file_path2>`, ...
     (word ATTACHED_FILES, double quotes, comma separated list of file paths in inverted commas)
     In the end of the final answer. Firstly it is compiled PDF, then some other files. 

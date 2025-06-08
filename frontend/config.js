@@ -9,7 +9,7 @@ const CONFIG = {
     
     // Production configuration (GitHub Pages + VPS API)
     production: {
-        API_BASE: 'https://your-domain.com',  // Replace with your VPS domain
+        API_BASE: 'http://91.108.121.43:8000',  // Replace with your VPS domain
         APP_NAME: 'HWAgent',
         DEBUG: false
     }
