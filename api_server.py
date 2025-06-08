@@ -21,7 +21,7 @@ from io import BytesIO
 
 app = FastAPI(
     title="HWAgent Streaming API with Vision Support",
-    description="Streaming API for Hardware Agent with real-time step-by-step execution and Vision Language Model support",
+    description="Streaming API for Homework Agent with real-time step-by-step execution and Vision Language Model support",
     version="2.0.0"
 )
 
