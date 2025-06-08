@@ -16,7 +16,7 @@ with open('hwagent/config/api.yaml', 'r') as f:
 with open('hwagent/config/agent_settings.yaml', 'r') as f:
     agent_settings = yaml.safe_load(f)
 
-SYSTEM_PROMPT = CODE_SYSTEM_PROMPT + prompts['thinking']['system_prompt']
+SYSTEM_PROMPT = prompts['thinking']['system_prompt'] + CODE_SYSTEM_PROMPT
 
 def get_agent():
     shell_tool = ShellTool()

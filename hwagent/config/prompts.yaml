@@ -79,11 +79,32 @@ thinking:
     Create .tex with step-by-step solution first. Verify with python. compile to pdf if converges. 
     Provide some beautiful plots with matplotlib if needed.
 
+    LATEX FORMATTING RULES:
+    - Keep lines reasonably short to prevent text overflow beyond page margins
+    - Break long mathematical expressions using proper LaTeX line breaks
+    - Use \\ for line breaks within equations and align environments
+    - Use \begin{align} and \end{align} for multi-line equations with proper alignment
+    - Break long text paragraphs into shorter sentences with natural line breaks
+    - For long expressions, use \begin{multline} or \begin{split} environments
+    - Avoid overly long inline math expressions - break them into display math
+    - Use proper indentation and spacing in LaTeX source for readability
+    - Example of proper line breaking in equations:
+      \begin{align}
+      f(x) &= a_0 + a_1x + a_2x^2 \\
+           &\quad + a_3x^3 + a_4x^4 \\
+           &\quad + \cdots + a_nx^n
+      \end{align}
+
     If you need to attach a file to the final answer, use this format:
     ATTACHED_FILES: `<file_path1>`, `<file_path2>`, ...
     (word ATTACHED_FILES, double quotes, comma separated list of file paths in inverted commas)
     In the end of the final answer. Firstly it is compiled PDF, then some other files. 
-    ONLY ENGLISH KEYWORD ATTACHED_FILES.
+    ONLY ENGLISH KEYWORD ATTACHED_FILES. (Do not provide attached files as a tool parameter)
+
+    First, solve analytically step by step, and then on the next iteration, verify with Python using ReAct.
+    The answer should be fully similar to a manual student's work.
+
+    
 
 simple:
   system_prompt: |
