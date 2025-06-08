@@ -9,7 +9,7 @@ echo "🚀 Deploying HWAgent Backend to VPS..."
 
 # Configuration
 VPS_IP="91.108.121.43"
-PROJECT_PATH="/root/HWagent"
+PROJECT_PATH="/root/HWAgent"
 SERVICE_NAME="hwagent-api"
 
 echo "📦 Installing/updating dependencies..."
@@ -19,7 +19,7 @@ pip install -r ${PROJECT_PATH}/requirements.txt
 
 echo "🔧 Setting up systemd service..."
 # Update service file with correct paths
-sed -i "s|/root/HWagent|${PROJECT_PATH}|g" ${PROJECT_PATH}/hwagent-api.service
+sed -i "s|/root/HWAgent|${PROJECT_PATH}|g" ${PROJECT_PATH}/hwagent-api.service
 
 # Copy service file to systemd directory
 sudo cp ${PROJECT_PATH}/hwagent-api.service /etc/systemd/system/

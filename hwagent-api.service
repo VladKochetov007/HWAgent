@@ -5,10 +5,10 @@ After=network.target
 [Service]
 Type=simple
 User=www-data
-WorkingDirectory=/root/HWagent
-Environment=PATH=/root/HWagent/.venv/bin
+WorkingDirectory=/root/HWAgent
+Environment=PATH=/root/HWAgent/.venv/bin
 Environment=HWAGENT_VERBOSE=1
-ExecStart=/root/HWagent/.venv/bin/python -m uvicorn api_server:app --host 0.0.0.0 --port 8000
+ExecStart=/root/HWAgent/.venv/bin/python -m uvicorn api_server:app --host 0.0.0.0 --port 8000
 Restart=always
 RestartSec=3
 
@@ -16,7 +16,7 @@ RestartSec=3
 NoNewPrivileges=true
 ProtectSystem=strict
 ProtectHome=true
-ReadWritePaths=/root/HWagent
+ReadWritePaths=/root/HWAgent
 
 [Install]
 WantedBy=multi-user.target 
