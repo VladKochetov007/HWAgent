@@ -36,8 +36,6 @@ def main():
     
     logger.info("🧠 Agent verbose mode enabled")
     logger.info("🔧 Starting production API server...")
-    logger.info("📖 API documentation will be at: http://91.108.121.43:8000/docs")
-    logger.info("🏥 Health check at: http://91.108.121.43:8000/health")
     
     try:
         uvicorn.run(

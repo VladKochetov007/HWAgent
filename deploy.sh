@@ -18,10 +18,7 @@ source ${PROJECT_PATH}/.venv/bin/activate
 pip install -r ${PROJECT_PATH}/requirements.txt
 
 echo "🔧 Setting up systemd service..."
-# Update service file with correct paths
-sed -i "s|/root/HWAgent|${PROJECT_PATH}|g" ${PROJECT_PATH}/hwagent-api.service
-
-# Copy service file to systemd directory
+# Copy service file to systemd directory (paths already correct)
 sudo cp ${PROJECT_PATH}/hwagent-api.service /etc/systemd/system/
 
 # Reload systemd and enable service

@@ -4,7 +4,7 @@ After=network.target
 
 [Service]
 Type=simple
-User=www-data
+User=root
 WorkingDirectory=/root/HWAgent
 Environment=PATH=/root/HWAgent/.venv/bin
 Environment=HWAGENT_VERBOSE=1
@@ -14,8 +14,6 @@ RestartSec=3
 
 # Security settings
 NoNewPrivileges=true
-ProtectSystem=strict
-ProtectHome=true
 ReadWritePaths=/root/HWAgent
 
 [Install]
