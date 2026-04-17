@@ -12,7 +12,8 @@ pytest==8.3.4
 requests==2.32.3
 
 # HWAgent core
-smolagents==1.7.0
+smolagents==1.24.0
+ddgs
 
 # Environment and configuration
 python-dotenv==1.0.0

@@ -1,5 +1,4 @@
 from smolagents import CodeAgent, OpenAIServerModel
-from smolagents.prompts import CODE_SYSTEM_PROMPT
 from hwagent.tools import ShellTool, EditFileTool, CreateFileTool
 import os
 import yaml
@@ -15,8 +14,6 @@ with open('hwagent/config/api.yaml', 'r') as f:
 
 with open('hwagent/config/agent_settings.yaml', 'r') as f:
     agent_settings = yaml.safe_load(f)
-
-SYSTEM_PROMPT = prompts['thinking']['system_prompt'] + CODE_SYSTEM_PROMPT
 
 def get_agent():
     shell_tool = ShellTool()
@@ -44,7 +41,7 @@ def get_agent():
             api_key=os.getenv("OPENROUTER_API_KEY"),
             temperature=api_config['model_parameters']['thinking_temperature']
         ),
-        system_prompt=SYSTEM_PROMPT,
+        instructions=prompts['thinking']['system_prompt'],
         add_base_tools=True,
         additional_authorized_imports=agent_settings['agent_settings']['additional_authorized_imports'],
         max_steps=agent_settings['agent_settings']['max_steps'],

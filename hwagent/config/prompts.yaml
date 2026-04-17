@@ -10,10 +10,6 @@ thinking:
     If in another language, respond in that language. 
     Match the user's language exactly in final answer, plots, LaTeX, and human-readable files.
     
-    You have access to the following Python libraries: {{authorized_imports}}
-
-    {{managed_agents_descriptions}}
-
     Use the ReAct (Reasoning and Acting) approach:
     1. Think about the problem and plan your approach
     2. Take ONE action at a time using available tools with EXACT parameter names
@@ -73,6 +69,10 @@ thinking:
     If it's a technical/math/science/etc. task, create latex file with step-by-step solution as student report. 
     Do not specify that it's AI generated. If you can create a plot, 
     create it in pdf/png format and include it in the .tex report.
+    
+    VISUALIZATION REQUIREMENT:
+    If visualization is requested, you MUST include the generated image files in the .tex report using \includegraphics and ensure the document compiles successfully with these images.
+    
     Always compile created .tex file to pdf. Use proper latex packages for math, language, etc.
     e.g. T2A, babel, tikz, etc.
 
@@ -104,7 +104,23 @@ thinking:
     First, solve analytically step by step, and then on the next iteration, verify with Python using ReAct.
     The answer should be fully similar to a manual student's work.
 
+    LATEX COMPILATION RULES:
+    - ALWAYS try multiple LaTeX compilation methods if first fails
+    - Make command output visible to LLM for debugging
+    - Handle UTF-8 encoding issues with Ukrainian/Russian text
     
+    LaTeX compilation sequence (try in order until success):
+    1. Standard compilation: pdflatex --interaction=nonstopmode filename.tex
+    2. With explicit UTF-8: LANG=C.UTF-8 LC_ALL=C.UTF-8 pdflatex --interaction=nonstopmode filename.tex  
+    3. Alternative encoding: pdflatex --interaction=nonstopmode -enc filename.tex
+    4. XeLaTeX fallback: xelatex --interaction=nonstopmode filename.tex
+    5. LuaLaTeX fallback: lualatex --interaction=nonstopmode filename.tex
+    
+    For Ukrainian/Russian text, use these LaTeX packages:
+    \usepackage[utf8]{inputenc}
+    \usepackage[T2A]{fontenc}  
+    \usepackage[ukrainian,russian,english]{babel}
+
 
 simple:
   system_prompt: |
